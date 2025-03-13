@@ -1,28 +1,27 @@
-BITS 16        
+bits 16
+org 0x9000     ; Se ejecutará en la dirección 0x9000
 
-section   .data
-    message:  db        "Hello, desde adentro", 10 
+start:
+    mov si, msg
+    call print
 
-section   .text
-    global _start
+hang:
+    jmp hang    ; Bucle infinito
 
-          
-_start:   
-    mov edx, message
-    call print_string
-    jmp exit                       ; invoke operating system to exit
-
-print_string:
-    mov ecx, edx
-    mov edx, 100
-    mov ebx, 1
-    mov eax, 4
-    int 0x80
+; -------------------
+; Función imprimir
+; -------------------
+print:
+    mov ah, 0x0E
+.loop:
+    lodsb
+    cmp al, 0
+    je done
+    int 0x10
+    jmp .loop
+done:
     ret
 
-exit:
-    mov eax, 1
-    xor ebx, ebx
-    int 0x80
+msg db "Hello, World! desde adentro", 0
 
-dw 0xAA55 
+times 512-($-$$) db 0  ; Asegurar que ocupa exactamente 1 sector
