@@ -7,7 +7,7 @@ start:
     call print_string
 
 
-    mov ax, 0x7E00   ; Segmento donde se carga el programa
+    mov ax, 0x7E0   ; Segmento donde se carga el programa
     mov es, ax
     mov bx, 0x0000  ; Offset 0x0000 dentro de ES:BX
 
