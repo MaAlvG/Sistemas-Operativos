@@ -12,7 +12,7 @@ start:
     mov bx, 0x0000  ; Offset 0x0000 dentro de ES:BX
 
     mov ah, 0x02    ; Función de INT 13h para leer desde el disco
-    mov al, 1       ; Número de sectores a leer (1 sector = 512 bytes)
+    mov al, 2       ; Número de sectores a leer (1 sector = 512 bytes)
     mov ch, 0       ; Cilindro 0
     mov cl, 2       ; Sector 2 (LBA 1 en discos CHS)
     mov dh, 0       ; Cabeza 0
@@ -41,7 +41,7 @@ print_string:
     ret
 
 boot_msg db "Bootloader iniciado. Cargando MRPV...", 0
-error_msg db "Error al iniciar!", 0
+error_msg db "Error al iniciar! boot", 0
 
 times 510-($-$$) db 0  ; Rellenar hasta 510 bytes
 dw 0xAA55              ; Firma de sector de arranque

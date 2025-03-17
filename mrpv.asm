@@ -1,5 +1,5 @@
 [BITS 16]
-[ORG 0x7E00]
+[ORG 0]
 
 start:
     mov ax, 0x7E0
@@ -20,7 +20,7 @@ gen_loop:
     add al, 'a'        ; Ajusta para estar en el rango 'a' - 'z'
     cmp al, 'z'        ; Asegurar que no se pase del rango
     jg gen_loop
-    mov [di], al       ; Almacena carácter en la cadena
+    mov [di], al     ; Almacena carácter en la cadena
     inc di
     loop gen_loop
 
@@ -37,8 +37,9 @@ gen_loop:
 ; Generar un número pseudoaleatorio en AL usando el temporizador
 get_random:
     mov ah, 0          ; Función 00h de INT 1Ah: Obtener ticks desde medianoche
-    int 0x1A
-    xor ah, ah         ; Usar AX como número aleatorio
+    int 0x1A           ; AX ahora contiene el número de ticks
+    mov al, ah         ; Usamos AH en vez de AL para más variabilidad
+    xor ah, dl         ; Mezclamos con DL (registro usado por el disco, que suele cambiar)
     ret
 
 ; Imprime una cadena terminada en 0

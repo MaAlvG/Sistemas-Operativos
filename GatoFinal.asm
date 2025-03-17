@@ -186,6 +186,14 @@ loop_game:
 
 
 
+CreaLetras:
+mov ax, [semilla]
+mov cx, 48271
+xor dx, dx
+mul cx
+add ax, 12345
+adc dx, 0
+mov [semilla], ax
 
 ;limpia el tablero de juego cada vez que sea necesario
 clean_board:
