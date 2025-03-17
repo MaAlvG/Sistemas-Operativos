@@ -62,8 +62,9 @@ game:
     ; Imprimir nueva línea
     mov bx, newline_msg
     call print_string
-        call cls
-    call checkA
+    call cls
+
+    call check_B
     jmp $
     ret
 
@@ -88,48 +89,62 @@ checkA:
 mov si, phonetic_alphabet  ; Cargar dirección de inicio
 
 next_word:
-    mov bx, si
-    call print_string      ; Imprimir la palabra actual
-    mov bx, newline_msg
-    call print_string          ; Nueva línea después de imprimir
+    cmp byte [si], bl
+    je found_word
 
-    ; Buscar el siguiente 0x00
 find_next:
     lodsb                  ; Cargar byte en AL y avanzar SI
     cmp al, 0              ; ¿Es el final de la palabra?
     jne find_next          ; Si no, seguir avanzando
 
     cmp byte [si], 0       ; ¿Es el final de la lista?
-    je done                ; Si sí, terminar
+    je end_list                ; Si sí, terminar
 
     jmp next_word          ; Ir a la siguiente palabra
 
-done:
+found_word:
+    mov bx, si
+    call print_string      ; Imprimir la palabra actual
+    mov bx, newline_msg
+    call print_string 
+end_list:
     ret
+
+check_B:
+    mov di, buffer
+    mov bl, [di]
+    
+    cmp bl, "a"
+    je letraA
+
+letraA:
+    mov bl, 'A'
+    jmp checkA
+jmp $
 ;===========================================000
 ;===========================================000
 
 checkB:
 mov si, phonetic_alphabet  ; Cargar dirección de inicio
 
-next_word:
+next_wordB:
     mov bx, si
     call print_string      ; Imprimir la palabra actual
     mov bx, newline_msg
     call print_string          ; Nueva línea después de imprimir
 
     ; Buscar el siguiente 0x00
-find_next:
+find_nextB:
     lodsb                  ; Cargar byte en AL y avanzar SI
     cmp al, 0              ; ¿Es el final de la palabra?
-    jne find_next          ; Si no, seguir avanzando
+    jne find_nextB          ; Si no, seguir avanzando
 
     cmp byte [si], 0       ; ¿Es el final de la lista?
-    je done                ; Si sí, terminar
+    je doneB                ; Si sí, terminar
 
-    jmp next_word          ; Ir a la siguiente palabra
+    jmp next_wordB          ; Ir a la siguiente palabra
 
-done:
+doneB:
     ret
 ;================================
 
