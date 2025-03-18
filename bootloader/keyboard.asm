@@ -8,14 +8,16 @@ start:
     mov bx, newline_msg
     call print_string
 
-    jmp game ; 
+    
+    
 
-
+    
 
     ; Imprimir nueva línea
     mov bx, newline_msg
     call print_string
 
+    jmp game ; 
     ;mov bx, 
     ;call print_string
 
@@ -48,9 +50,12 @@ game:
 
     mov bx, newline_msg
     call print_string 
+
     call generate_word
     mov bx, newline_msg
     call print_string 
+    mov bx, palabra_de_prueba
+    call print_string
 
 .spell_loop:
     mov di, buffer1
@@ -81,16 +86,22 @@ game:
 
 get_punctuation:
     mov di, user_spelling
+
     mov bx, buffer1
     call copy_word
+
     mov bx, buffer2
     call copy_word
+
     mov bx, buffer3
     call copy_word
+
     mov bx, buffer4
     call copy_word
+
     mov bx, buffer5
     call copy_word
+
     mov byte [di], 0
 
     mov bx, user_spelling
@@ -101,8 +112,8 @@ mov si, phonetic_spelling
 mov di, user_spelling
 
 compare_letters:
-    mov al, [si]     ; Letra original
-    mov bl, [di]     ; Letra ingresada
+    mov al, [si]     ; char_buffer original
+    mov bl, [di]     ; char_buffer ingresada
     cmp al, 0
     je show_score
 
@@ -140,8 +151,28 @@ show_score:
 
 ;================================
 generate_word:
-    ;=======================aqui se necesita generar la palabra
-    ; Mostrar mensaje de solicitud
+    mov di, palabra_de_prueba
+
+    call get_random_word
+    mov bx, char_buffer
+    call copy_word
+
+    call get_random_word
+    mov bx, char_buffer
+    call copy_word
+
+    call get_random_word
+    mov bx, char_buffer
+    call copy_word
+
+    call get_random_word
+    mov bx, char_buffer
+    call copy_word
+
+    call get_random_word
+    mov bx, char_buffer
+    call copy_word
+
     call spell_word
 
     ret
@@ -184,7 +215,30 @@ copy_word:
     ret
 
 ;================================
-;rutina para guardar un numero como cadena de caracteres
+;rutina para generar letras aleatorias
+get_random_word:
+    
+.random_word_loop:
+    call read_seed
+    call get_letter         ; Llama a la función que genera un número aleatorio
+    and al, 25              ; Limita el valor entre 0 y 25 (para letras a-z)
+    add al, 'a'             ; Convierte el número en una letra ASCII
+    mov [char_buffer], al   
+    call save_seed      ; Guarda el resultado en la variable char_buffer
+    ret
+
+get_letter:
+     ; Usa la parte baja del contador como nueva semilla
+
+    mov ax, [seed]    ; Carga el valor de la semilla en AX
+    mov cx, 48271        ; Constante multiplicativa
+    xor dx, dx           ; Borra DX (DX:AX es un registro extendido de 32 bits)
+    mul cx               ; Multiplica AX por CX (resultado en DX:AX)
+    add ax, 16435        ; Suma una constante al resultado
+    adc dx, 0            ; Agrega cualquier desbordamiento a DX
+    mov [seed], ax
+    ret    ; Guarda el nuevo valor en la semilla
+
 
 ;======================================
 check_B:
@@ -399,6 +453,49 @@ print_string_si:
 .done_si:
     ret
 ;===============================
+save_seed:
+    mov ah, 0x03     ; Función de INT 13h para escribir en disco
+    mov al, 1        ; Número de sectores a escribir (1 sector = 512 bytes)
+    mov ch, 0        ; Cilindro 0
+    mov cl, 5        ; Sector 5 (LBA 4 en CHS)
+    mov dh, 0        ; Cabeza 0
+    mov dl, 0x80     ; Disco duro (o 0x00 si es disquete)
+    
+    mov bx, seed  ; Dirección donde está la puntuación
+    mov es, bx
+    mov bx, 0x0000  
+
+    int 0x13         ; Llamar a la BIOS para escribir el sector
+    jc error_escritura ; Si hay error, mostrar mensaje
+    ret              ; Retorna si la escritura es exitosa
+
+error_escritura:
+    mov si, msg_error_escritura
+    call print_string
+    ret
+
+read_seed:
+    mov ah, 0x02     ; Función de INT 13h para leer del disco
+    mov al, 1        ; Número de sectores a leer (1 sector = 512 bytes)
+    mov ch, 0        ; Cilindro 0
+    mov cl, 5        ; Sector 5 (LBA 4 en CHS)
+    mov dh, 0        ; Cabeza 0
+    mov dl, 0x80     ; Disco duro (o 0x00 si es disquete)
+    
+    mov bx, seed  ; Dirección donde guardar la puntuación
+    mov es, bx
+    mov bx, 0x0000  
+
+    int 0x13         ; Llamar a la BIOS para leer el sector
+    jc error_lectura ; Si hay error, mostrar mensaje de error
+    ret              ; Retorna si la lectura es exitosa
+
+error_lectura:
+    mov si, msg_error_lectura
+    call print_string
+    ret
+
+;===============================
 ;Rutina para sumar numeros
 ;el numero debe estar iniciado como caracter
 
@@ -512,7 +609,7 @@ palabra_de_prueba db "marco", 0
 
 prompt db "Ingrese una letra (A-Z): ", 0x0D, 0x0A, 0x00
 
-invalid_msg db "Letra invalida!", 0x0D, 0x0A, 0x00
+invalid_msg db "char_buffer invalida!", 0x0D, 0x0A, 0x00
 
 user_spelling              times 128 db 0
 
@@ -528,4 +625,9 @@ numberTest: dd 435
 
 phonetic_spelling   times 128 db 0
 
-const10:    dd 10
+char_buffer db "a", 0
+
+
+seed equ 0x9000  ; Dirección donde se guardará la puntuación
+msg_error_lectura db "Error al leer la puntuacion!", 0
+msg_error_escritura db "Error al escribir la puntuacion!", 0
