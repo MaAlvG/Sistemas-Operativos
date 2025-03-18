@@ -1,17 +1,16 @@
-BITS 16
-ORG 0x7C00  ; Dirección donde la BIOS carga el sector de arranque
+[BITS 16]
+[ORG 0x7C00]  ; Dirección donde la BIOS carga el sector de arranque
 
 start:
-    ; Mostrar mensaje de inicio
     mov si, boot_msg
     call print_string
 
 
     mov ax, 0x7E0   ; Segmento donde se carga el programa
     mov es, ax
-    mov bx, 0x0000  ; Offset 0x0000 
+    mov bx, 0x0000  
 
-    mov ah, 0x02    ; Función de INT 13h para leer desde el disco
+    mov ah, 0x02    ; carga la función de INT 13h para leer desde el disco
     mov al, 3       ; Número de sectores a leer 
     mov ch, 0       ; Cilindro 0
     mov cl, 2       ; Sector 2 

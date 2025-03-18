@@ -31,7 +31,7 @@ game:
     call print_string 
 
     
-.spell_word:
+.spell_word: ;genera el deletro fonetico de la palabra generada
     mov di, buffer1
     call read_string
     mov bx, newline_msg
@@ -60,7 +60,7 @@ game:
     call print_string 
     
 
-get_user_spelling:
+get_user_spelling: ;guardael deletro fonetico ingresado por el usuario
     mov di, user_spelling
 
     mov bx, buffer1
@@ -99,7 +99,7 @@ get_user_spelling:
 mov si, phonetic_spelling 
 mov di, user_spelling
 
-compare_letters:
+compare_letters: ;compara el deletreo fonetico con el deletreo ingresado por el usuario
     mov al, [si]     
     mov bl, [di]     
     cmp al, 0
@@ -115,10 +115,10 @@ update_score:
     mov dx, [points_rdn]
     cmp al, bl              ; Comparar letras originales con las ingresadas
     je .correct             ; Si son iguales, sumar punto
-    cmp al, '*'             ; Si es '*', restar más puntos
+    cmp al, '*'             
     je .incorrect_star
     ret
-.incorrect:
+.incorrect:     ;actualiza un contador de puntos diferente para ayudar a la generacion de letras aleatorias
     
     dec dx
     dec dx
@@ -150,7 +150,7 @@ show_score:
     ret
 
 ;================================
-generate_word:
+generate_word:  ;genera una cadena de 5 caracteres aleatorios y los guarda
     mov di, palabra_de_prueba
 
     call get_random_word
@@ -243,6 +243,8 @@ get_letter:
 
  
 ;======================================
+;Rutina para buscar y cargar el deletreo correspondiente a cada letra
+
 check_B:
 
     cmp bl, "a"
@@ -430,7 +432,7 @@ print_score:
     call print_string
     ret
 ;================================
-; Rutina para imprimir cadenas 
+; Rutina para imprimir cadenas de caracteres
 
 print_string:                                                                                                                                                                            
     mov ah, 0x0E
