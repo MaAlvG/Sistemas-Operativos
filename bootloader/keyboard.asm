@@ -3,35 +3,12 @@ ORG 0x7E00          ; ORG 0 porque el código se carga en DS:0 = 0x7E00
 
 start:
     
-    ;=========imprimir instrucciones
+    mov bx, instrucciones
     
     mov bx, newline_msg
     call print_string
 
-    
-    
-
-    
-
-    ; Imprimir nueva línea
-    mov bx, newline_msg
-    call print_string
-
-    jmp game ; 
-    ;mov bx, 
-    ;call print_string
-
-        ; Mostrar mensaje indicando lo ingresado
-    ;mov bx, input_msg
-    ;call print_string
-    
-    ; Imprimir lo ingresado (cadena almacenada en buffer)
-    ;mov bx, buffer
-    ;call print_string
-
-    ; Imprimir nueva línea
-    ;mov bx, newline_msg
-    ;call print_string
+    jmp game 
     
     jmp $
 
@@ -45,19 +22,16 @@ game:
     mov bx, prompt_msg
     call print_string
 
-    mov bx, palabra_de_prueba
-    call print_string
-
-    mov bx, newline_msg
-    call print_string 
-
     call generate_word
-    mov bx, newline_msg
-    call print_string 
+    
     mov bx, palabra_de_prueba
     call print_string
 
-.spell_loop:
+    mov bx, newline_msg
+    call print_string 
+
+    
+.spell_word:
     mov di, buffer1
     call read_string
     mov bx, newline_msg
@@ -80,11 +54,13 @@ game:
 
     mov di, buffer5
     call read_string
+
+    mov byte [di], 0
     mov bx, newline_msg
     call print_string 
-    ;mov byte [di], 0 
+    
 
-get_punctuation:
+get_user_spelling:
     mov di, user_spelling
 
     mov bx, buffer1
@@ -104,16 +80,28 @@ get_punctuation:
 
     mov byte [di], 0
 
+    mov bx, mensaje2
+    call print_string
+
+    mov bx, phonetic_spelling
+    call print_string
+
+    mov bx, newline_msg
+    call print_string 
+
+    mov bx, input_msg
+    call print_string
+
     mov bx, user_spelling
     call print_string
 
-mov dx, 0            ; Inicializar puntuación en 0
-mov si, phonetic_spelling
+
+mov si, phonetic_spelling 
 mov di, user_spelling
 
 compare_letters:
-    mov al, [si]     ; char_buffer original
-    mov bl, [di]     ; char_buffer ingresada
+    mov al, [si]     
+    mov bl, [di]     
     cmp al, 0
     je show_score
 
@@ -124,30 +112,42 @@ compare_letters:
     jmp compare_letters
 
 update_score:
+    mov dx, [points_rdn]
     cmp al, bl              ; Comparar letras originales con las ingresadas
-    je .correct             ; Si son iguales, sumar puntos
+    je .correct             ; Si son iguales, sumar punto
     cmp al, '*'             ; Si es '*', restar más puntos
     je .incorrect_star
-
+    ret
 .incorrect:
-    sub dx, 1               ; Restar 1 punto por error
+    
+    dec dx
+    dec dx
+    dec dx
+    dec dx
+    dec dx
+    mov [points_rdn], dx
     ret
 
 .incorrect_star:
-    sub dx, 2               ; Restar 2 puntos si fue '*'
+    sub dx, 2 
+    mov [points_rdn], dx              ; Restar 2 puntos si fue '*'
     ret
 
 .correct:
-    call add_points               ; Sumar 2 puntos si fue correcto
+    inc dx
+    inc dx
+    inc dx
+    mov [points_rdn], dx
+    call add_points               ; Sumar 1 punto si fue correcto
     ret
 
 show_score:
     mov bx, newline_msg
     call print_string
     call print_score
-    jmp $  ; Mostrar puntaje final (puedes implementar esto)
+    
+    jmp game
     ret
-
 
 ;================================
 generate_word:
@@ -194,8 +194,8 @@ next_letter_to_spell:
 
 .done_spelling:
     mov byte [di], 0     ; Agregar terminador nulo
-    mov bx, phonetic_spelling
-    call print_string
+    ;mov bx, phonetic_spelling
+    ;call print_string
     ret                  ; Termina la función
 
 ;==============================================
@@ -224,22 +224,24 @@ get_random_word:
     and al, 25              ; Limita el valor entre 0 y 25 (para letras a-z)
     add al, 'a'             ; Convierte el número en una letra ASCII
     mov [char_buffer], al   
-    call save_seed      ; Guarda el resultado en la variable char_buffer
     ret
 
 get_letter:
      ; Usa la parte baja del contador como nueva semilla
 
-    mov ax, [seed]    ; Carga el valor de la semilla en AX
+    mov ax, [seed]
+    mov bx, [points_rdn] 
+    add ax, bx   ; Carga el valor de la semilla en AX
     mov cx, 48271        ; Constante multiplicativa
-    xor dx, dx           ; Borra DX (DX:AX es un registro extendido de 32 bits)
+    xor dx, dx           ; Borra DX 
     mul cx               ; Multiplica AX por CX (resultado en DX:AX)
-    add ax, 16435        ; Suma una constante al resultado
-    adc dx, 0            ; Agrega cualquier desbordamiento a DX
+    add ax, 12345        ; Suma una constante al resultado
+    adc dx, 0        
     mov [seed], ax
+    
     ret    ; Guarda el nuevo valor en la semilla
 
-
+ 
 ;======================================
 check_B:
 
@@ -418,6 +420,8 @@ cls:
 ;================================
 ; Rutinas para imprimir la puntuacion 
 print_score:
+    mov bx, cents
+    call print_string
     mov bx, tens
     call print_string
     mov bx, units
@@ -426,7 +430,7 @@ print_score:
     call print_string
     ret
 ;================================
-; Rutinas para imprimir cadenas 
+; Rutina para imprimir cadenas 
 
 print_string:                                                                                                                                                                            
     mov ah, 0x0E
@@ -442,38 +446,7 @@ print_string:
     xor bx, bx
     ret
 
-print_string_si:
-    mov ah, 0x0E
-.loop_si:
-    lodsb
-    cmp al, 0
-    je .done_si
-    int 0x10
-    jmp .loop_si
-.done_si:
-    ret
 ;===============================
-save_seed:
-    mov ah, 0x03     ; Función de INT 13h para escribir en disco
-    mov al, 1        ; Número de sectores a escribir (1 sector = 512 bytes)
-    mov ch, 0        ; Cilindro 0
-    mov cl, 5        ; Sector 5 (LBA 4 en CHS)
-    mov dh, 0        ; Cabeza 0
-    mov dl, 0x80     ; Disco duro (o 0x00 si es disquete)
-    
-    mov bx, seed  ; Dirección donde está la puntuación
-    mov es, bx
-    mov bx, 0x0000  
-
-    int 0x13         ; Llamar a la BIOS para escribir el sector
-    jc error_escritura ; Si hay error, mostrar mensaje
-    ret              ; Retorna si la escritura es exitosa
-
-error_escritura:
-    mov si, msg_error_escritura
-    call print_string
-    ret
-
 read_seed:
     mov ah, 0x02     ; Función de INT 13h para leer del disco
     mov al, 1        ; Número de sectores a leer (1 sector = 512 bytes)
@@ -492,12 +465,11 @@ read_seed:
 
 error_lectura:
     mov si, msg_error_lectura
-    call print_string
+    ;call print_string
     ret
 
 ;===============================
-;Rutina para sumar numeros
-;el numero debe estar iniciado como caracter
+;Rutina para sumar numero el numero debe estar iniciado como caracter
 
 add_points:
     mov ax, [units] ;mover a ax el numero
@@ -523,45 +495,41 @@ add_tens:
     ret
 
 add_cents:
-    mov bx, how
-    call print_string
+    sub ax, 9
+    add ax, '0'
+    mov [tens], ax
+    mov ax, [cents]
+    sub ax, '0'
+    cmp ax, 9
+    je max_score
+    add ax, 1
+    add ax, '0'
+    mov [cents], ax
     ret
 
+max_score:
+    mov bx, how
+    call print_string
 ;====================================
 ; Rutina para leer una cadena del teclado.
-; Lee carácter a carácter hasta que se presione ENTER (0x0D) y hace eco.
+; Lee carácter a carácter hasta que se presione ENTER
 read_string:
-      ; DI apunta al buffer
+      ; se debe definir el buffer donde se guardara apuntandolo a DI
 .read_loop:
     mov ah, 0       ; Espera una tecla (INT 16h)
     int 0x16
     cmp al, 0x0D   ; ¿Se presionó ENTER?
     je .done_read
-        ; Eco: imprimir el carácter leído
+        
     mov ah, 0x0E
-    int 0x10
-        ; Guardar el carácter en el buffer
-    mov [di], al
+    int 0x10        ;permite ver el carácter leído
+        
+    mov [di], al ; Guardar el carácter en el buffer
     inc di
     jmp .read_loop
 .done_read:
     mov byte [di], 0   ; Terminar la cadena con 0
     xor al, al
-    ret
-
-read_string_B:
-    mov di, buffer1  ; DI apunta al buffer
-.read_loop_B:
-    mov ah, 0       ; Espera una tecla (INT 16h)
-    int 0x16
-    cmp al, 0x0D   ; ¿Se presionó ENTER?
-    je .done_read_B
-    ; Guardar el carácter en el buffer
-    mov [di], al
-    inc di
-    jmp .read_loop_B
-.done_read_B:
-    mov byte [di], 0   ; Terminar la cadena con 0
     ret
 
 ;===================================
@@ -600,16 +568,20 @@ prompt_msg db "Palabra a deletrear: ", 0
 
 newline_msg db 0x0D, 0x0A, 0
 
-input_msg db "Lo que ingreso fue: ", 0
-
 units db '0',0
 tens db '0',0
+cents db '0',0
 how db "how?",0
+
+points_rdn dw 1350
+
 palabra_de_prueba db "marco", 0
 
-prompt db "Ingrese una letra (A-Z): ", 0x0D, 0x0A, 0x00
+input_msg db "El deletreo ingresado es: ", 0
+ mensaje2 db "El deletro correcto es:   ", 0
 
-invalid_msg db "char_buffer invalida!", 0x0D, 0x0A, 0x00
+instrucciones   db "EL objetivo de este juego es realizar el deletreo correcto",10
+                db "de una cadena de caracteres utilizando el alfabeto fonetico",10,0
 
 user_spelling              times 128 db 0
 
@@ -621,13 +593,9 @@ buffer5       times 28 db 0
 
 number_buffer db 10, 0
 
-numberTest: dd 435
-
 phonetic_spelling   times 128 db 0
 
-char_buffer db "a", 0
+char_buffer db "f", 0
 
-
-seed equ 0x9000  ; Dirección donde se guardará la puntuación
+seed dw 0824  
 msg_error_lectura db "Error al leer la puntuacion!", 0
-msg_error_escritura db "Error al escribir la puntuacion!", 0
