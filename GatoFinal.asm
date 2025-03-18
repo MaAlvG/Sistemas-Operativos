@@ -56,6 +56,29 @@ section .text
 	
 _start:
 
+copy_word:
+    cld               ; Asegurar incremento hacia adelante
+.copy_loop:
+    lodsb             ; Cargar byte desde DS:SI en AL y avanzar SI
+    cmp al, 0
+    je .done_copy
+    stosb             ; Almacenar AL en ES:DI y avanzar DI
+    jmp .copy_loop
+.done_copy:
+    ret
+
+copy_word_B
+    mov al, [bx]
+    cmp al, 0
+    je .done_copy_B
+    mov [di], al
+    inc di
+    inc bx
+    jmp copy_word_B
+done_copy_B
+    xor al,al
+    ret
+
 
 ;pantalla inicial, donde escribe 
 initial_screen:
