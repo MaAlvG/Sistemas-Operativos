@@ -56,28 +56,25 @@ section .text
 	
 _start:
 
-copy_word:
-    cld               ; Asegurar incremento hacia adelante
-.copy_loop:
-    lodsb             ; Cargar byte desde DS:SI en AL y avanzar SI
-    cmp al, 0
-    je .done_copy
-    stosb             ; Almacenar AL en ES:DI y avanzar DI
-    jmp .copy_loop
-.done_copy:
+spell_word:
+mov di, phonetic_spelling
+
+next_letter_to_spell:
+    mov bl, [cx]
+    cmp bl, 0
+    je done_spelling
+
+    call check_B
+    call copy_word
+    inc cx
+    jmp next_letter_to_spell
+
+.done_spelling:
+    mov byte [di], 0 
+    mov bx, phonetic_spelling
+    call print_string
     ret
 
-copy_word_B
-    mov al, [bx]
-    cmp al, 0
-    je .done_copy_B
-    mov [di], al
-    inc di
-    inc bx
-    jmp copy_word_B
-done_copy_B
-    xor al,al
-    ret
 
 
 ;pantalla inicial, donde escribe 

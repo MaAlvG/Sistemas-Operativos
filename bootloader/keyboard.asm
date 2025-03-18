@@ -20,6 +20,19 @@ start:
 
     ;mov bx, 
     ;call print_string
+
+        ; Mostrar mensaje indicando lo ingresado
+    ;mov bx, input_msg
+    ;call print_string
+    
+    ; Imprimir lo ingresado (cadena almacenada en buffer)
+    ;mov bx, buffer
+    ;call print_string
+
+    ; Imprimir nueva línea
+    ;mov bx, newline_msg
+    ;call print_string
+    
     jmp $
 
 ;===============================
@@ -37,110 +50,168 @@ game:
 
     mov bx, newline_msg
     call print_string 
+    call generate_word
+    mov bx, newline_msg
+    call print_string 
 
-    call generate_word 
 .spell_loop:
+    mov di, buffer1
+    call read_string
+    mov bx, newline_msg
+    call print_string 
+
+    mov di, buffer2
     call read_string
     mov bx, newline_msg
     call print_string
 
-    ; Mostrar mensaje indicando lo ingresado
-    mov bx, input_msg
-    call print_string
-    
-    ; Imprimir lo ingresado (cadena almacenada en words_entered)
-    mov bx, words_entered
-    call print_string
-
-    ; Imprimir nueva línea
+    mov di, buffer3
+    call read_string
     mov bx, newline_msg
     call print_string
-    ;call cls
 
-    call check_B
-    jmp $
+    mov di, buffer4
+    call read_string
+    mov bx, newline_msg
+    call print_string 
+
+    mov di, buffer5
+    call read_string
+    mov bx, newline_msg
+    call print_string 
+    ;mov byte [di], 0 
+
+get_punctuation:
+    mov di, user_spelling
+    mov bx, buffer1
+    call copy_word
+    mov bx, buffer2
+    call copy_word
+    mov bx, buffer3
+    call copy_word
+    mov bx, buffer4
+    call copy_word
+    mov bx, buffer5
+    call copy_word
+    mov byte [di], 0
+
+    mov bx, user_spelling
+    call print_string
+
+mov dx, 0            ; Inicializar puntuación en 0
+mov si, phonetic_spelling
+mov di, user_spelling
+
+compare_letters:
+    mov al, [si]     ; Letra original
+    mov bl, [di]     ; Letra ingresada
+    cmp al, 0
+    je show_score
+
+    call update_score  ; Actualizar puntaje
+
+    inc si            ; Siguiente letra
+    inc di
+    jmp compare_letters
+
+update_score:
+    cmp al, bl              ; Comparar letras originales con las ingresadas
+    je .correct             ; Si son iguales, sumar puntos
+    cmp al, '*'             ; Si es '*', restar más puntos
+    je .incorrect_star
+
+.incorrect:
+    sub dx, 1               ; Restar 1 punto por error
     ret
+
+.incorrect_star:
+    sub dx, 2               ; Restar 2 puntos si fue '*'
+    ret
+
+.correct:
+    add dx, 2               ; Sumar 2 puntos si fue correcto
+    ret
+
+show_score:
+    call convert_to_string
+    mov bx, number_buffer
+    call print_string
+    jmp $  ; Mostrar puntaje final (puedes implementar esto)
+    ret
+
+
 ;================================
 generate_word:
     ;=======================aqui se necesita generar la palabra
     ; Mostrar mensaje de solicitud
+    call spell_word
 
-    mov bx, alpha       ; Apunta a "alpha", por ejemplo
-    mov di, phonetic_spelling    ; Destino inicial
-    call copy_word
+    ret
 
-    ; Insertar un espacio como separador
-    ;mov byte [di], ' '
+spell_word:
+    mov si, palabra_de_prueba   ; SI apunta a la palabra de entrada
+    mov di, phonetic_spelling   ; DI apunta al user_spelling de salida
 
-    ; Copiar la segunda palabra en el buffer
-    mov bx, bravo        ; Apunta a "juliett", por ejemplo
-    call copy_word
+next_letter_to_spell:
+    mov bl, [si]         ; Cargar la letra actual en BL
+    cmp bl, 0            ; ¿Fin de la palabra?
+    je .done_spelling
 
-    ; Agregar un terminador nulo al final del buffer
-    mov byte [di], 0 
+    call check_B         ; Buscar la palabra fonética (debe guardar dirección en BX)
+    call copy_word       ; Copiar la palabra fonética en `phonetic_spelling`
 
-    ; Mostrar el contenido del buffer
+    inc si               ; Avanzar al siguiente carácter de la palabra original
+    jmp next_letter_to_spell
+
+.done_spelling:
+    mov byte [di], 0     ; Agregar terminador nulo
     mov bx, phonetic_spelling
     call print_string
-
-    ret
-
-copy_string:
-    cld                  ; Asegurar que el avance sea hacia adelante
-.loop:
-    lodsb                ; Cargar byte de [SI] en AL y avanzar SI
-    stosb                ; Almacenar AL en [DI] y avanzar DI
-    test al, al          ; Verificar si es el terminador nulo (0)
-    jnz .loop            ; Si no es 0, seguir copiando
     ret                  ; Termina la función
 
-; Rutina: copy_word
-; Copia una palabra terminada en 0 desde SI a DI.
-; Al finalizar, DI apunta justo después del último carácter copiado.
+;==============================================
+;Rutina para copiar una palabra en otro espacio
 copy_word:
-    mov al, [bx]
-    cmp al, 0
+    cld                  ; Asegurar incremento normal
+.copy_loop:
+    mov al, [bx]         ; Cargar byte desde la palabra fonética
+    cmp al, 0            ; ¿Fin de la palabra?
     je .done_copy
-    mov [di], al
-    inc di
-    inc bx
-    jmp copy_word
+    mov [di], al         ; Guardar byte en destino
+    inc di               ; Avanzar en el destino
+    inc bx               ; Avanzar en la palabra de origen
+    jmp .copy_loop
+
 .done_copy:
-    xor al, al
     ret
-
-
-
 
 ;================================
-;rutina para comparar la palabra ingresada
+;rutina para guardar un numero como cadena de caracteres
+convert_to_string:
+    mov bx, 10           ; Divisor para separar los dígitos (base 10)
+    mov si, number_buffer ; Apuntamos a un buffer vacío para almacenar la cadena
+    add si, 10           ; Mover a la última posición del buffer (espacio para 10 dígitos)
+    mov byte [si], 0     ; Poner el terminador de cadena (0) en la última posición
 
-checkB:
-;mov di, phonetic_alphabet  ; Cargar dirección de inicio
+convert_loop:
+    dec si                ; Moverse hacia atrás en el buffer
+    xor dx, dx            ; Limpiar el registro DX (para el residuo)
+    div bx                ; DX:AX / 10 -> AX contiene el cociente, DX contiene el residuo
+    add dl, '0'           ; Convertir el residuo (número) a su valor ASCII
+    mov [si], dl          ; Almacenar el carácter ASCII en el buffer
 
-next_wordB:
-    mov bx, di
-    call print_string      ; Imprimir la palabra actual
-    mov bx, newline_msg
-    call print_string          ; Nueva línea después de imprimir
+    cmp ax, 0             ; Si el cociente es 0, hemos terminado
+    je .done_convert
 
-    ; Buscar el siguiente 0x00
-find_nextB:
-    lodsb                  ; Cargar byte en AL y avanzar SI
-    cmp al, 0              ; ¿Es el final de la palabra?
-    jne find_nextB          ; Si no, seguir avanzando
+    jmp convert_loop
 
-    cmp byte [si], 0       ; ¿Es el final de la lista?
-    je doneB                ; Si sí, terminar
-
-    jmp next_wordB          ; Ir a la siguiente palabra
-doneB:
+.done_convert:
     ret
 
+
+
+;======================================
 check_B:
-    
-    mov di, words_entered
-    mov bl, [di]
 
     cmp bl, "a"
     je letraA
@@ -173,7 +244,7 @@ check_B:
     je letraJ
     
     cmp bl, "k"
-    je letrak
+    je letraK
     
     cmp bl, "l"
     je letraL
@@ -219,111 +290,90 @@ check_B:
     
     cmp bl, "z"
     je letraZ
+
+    jmp letraInvalida
+
 letraA:
-    mov si, alpha
-    call print_string_si
+    mov bx, alpha
     ret
 letraB:
-    mov si, bravo
-    call print_string_si
+    mov bx, bravo
     ret
 letraC:
-    mov si, charlie
-    call print_string_si
+    mov bx, charlie
     ret
 letraD:
-    mov si, delta
-    call print_string_si
+    mov bx, delta
     ret
 letraE:
-    mov si, echo
-    call print_string_si
+    mov bx, echo
     ret
 letraF:
-    mov si, foxtrot
-    call print_string_si
+    mov bx, foxtrot
     ret
 letraG:
-    mov si, golf
-    call print_string_si
+    mov bx, golf
     ret
 letraH:
-    mov si, hotel
-    call print_string_si
+    mov bx, hotel
     ret
 letraI:
-    mov si, india
-    call print_string_si
+    mov bx, india
     ret
 letraJ:
-    mov si, juliett
-    call print_string_si
+    mov bx, juliett
     ret
-letrak:
-    mov si, kilo
-    call print_string_si
+letraK:
+    mov bx, kilo
     ret
 letraL:
-    mov si, lima
-    call print_string_si
+    mov bx, lima
     ret
 letraM:
-    mov si, mike
-    call print_string_si
+    mov bx, mike
     ret
 letraN:
-    mov si, november
-    call print_string_si
+    mov bx, november
     ret
 letraO:
-    mov si, oscar
-    call print_string_si
+    mov bx, oscar
     ret
 letraP:
-    mov si, papa
-    call print_string_si
+    mov bx, papa
     ret
 letraQ:
-    mov si, quebec
-    call print_string_si
+    mov bx, quebec
     ret
 letraR:
-    mov si, rome
-    call print_string_si
+    mov bx, rome
     ret
 letraS:
-    mov si, sierra
-    call print_string_si
+    mov bx, sierra
     ret
 letraT:
-    mov si, tango
-    call print_string_si
+    mov bx, tango
     ret
 letraU:
-    mov si, uniform 
-    call print_string_si
+    mov bx, uniform
     ret
 letraV:
-    mov si, victor
-    call print_string_si
+    mov bx, victor
     ret
 letraW:
-    mov si, whiskey
-    call print_string_si
+    mov bx, whiskey
     ret
 letraX:
-    mov si, xray
-    call print_string_si
+    mov bx, xray
     ret
 letraY:
-    mov si, yankee
-    call print_string_si
+    mov bx, yankee
     ret
 letraZ:
-    mov si, zulu
-    call print_string_si
+    mov bx, zulu
     ret
-jmp $
+letraInvalida:
+    mov bx, asterisco
+    ret
 ;================================
 
 
@@ -376,7 +426,7 @@ print_string_si:
 ; Rutina para leer una cadena del teclado.
 ; Lee carácter a carácter hasta que se presione ENTER (0x0D) y hace eco.
 read_string:
-    mov di, words_entered  ; DI apunta al words_entered
+      ; DI apunta al buffer
 .read_loop:
     mov ah, 0       ; Espera una tecla (INT 16h)
     int 0x16
@@ -385,7 +435,7 @@ read_string:
         ; Eco: imprimir el carácter leído
     mov ah, 0x0E
     int 0x10
-        ; Guardar el carácter en el words_entered
+        ; Guardar el carácter en el buffer
     mov [di], al
     inc di
     jmp .read_loop
@@ -395,13 +445,13 @@ read_string:
     ret
 
 read_string_B:
-    mov di, words_entered  ; DI apunta al words_entered
+    mov di, buffer1  ; DI apunta al buffer
 .read_loop_B:
     mov ah, 0       ; Espera una tecla (INT 16h)
     int 0x16
     cmp al, 0x0D   ; ¿Se presionó ENTER?
     je .done_read_B
-    ; Guardar el carácter en el words_entered
+    ; Guardar el carácter en el buffer
     mov [di], al
     inc di
     jmp .read_loop_B
@@ -410,8 +460,8 @@ read_string_B:
     ret
 
 ;===================================
-; Mensajes y words_entered
-
+; Mensajes y buffer
+asterisco db "*", 0
 alpha db "Alpha", 0
 bravo   db "Bravo", 0x00
 charlie    db "Charlie", 0x00
@@ -455,6 +505,14 @@ prompt db "Ingrese una letra (A-Z): ", 0x0D, 0x0A, 0x00
 
 invalid_msg db "Letra invalida!", 0x0D, 0x0A, 0x00
 
-words_entered       times 128 db 0
+user_spelling              times 128 db 0
+
+buffer1       times 28 db 0
+buffer2       times 28 db 0
+buffer3       times 28 db 0
+buffer4       times 28 db 0
+buffer5       times 28 db 0
+
+number_buffer db 10, 0
 
 phonetic_spelling   times 128 db 0
