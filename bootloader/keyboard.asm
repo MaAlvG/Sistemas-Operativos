@@ -8,10 +8,8 @@ start:
     mov bx, newline_msg
     call print_string
 
-    jmp game
+    jmp game ; 
 
-    mov bx, newline_msg
-    call print_string
 
 
     ; Imprimir nueva línea
@@ -129,13 +127,13 @@ update_score:
     ret
 
 .correct:
-    add dx, 2               ; Sumar 2 puntos si fue correcto
+    call add_points               ; Sumar 2 puntos si fue correcto
     ret
 
 show_score:
-    call convert_to_string
-    mov bx, number_buffer
+    mov bx, newline_msg
     call print_string
+    call print_score
     jmp $  ; Mostrar puntaje final (puedes implementar esto)
     ret
 
@@ -187,28 +185,6 @@ copy_word:
 
 ;================================
 ;rutina para guardar un numero como cadena de caracteres
-convert_to_string:
-    mov bx, 10           ; Divisor para separar los dígitos (base 10)
-    mov si, number_buffer ; Apuntamos a un buffer vacío para almacenar la cadena
-    add si, 10           ; Mover a la última posición del buffer (espacio para 10 dígitos)
-    mov byte [si], 0     ; Poner el terminador de cadena (0) en la última posición
-
-convert_loop:
-    dec si                ; Moverse hacia atrás en el buffer
-    xor dx, dx            ; Limpiar el registro DX (para el residuo)
-    div bx                ; DX:AX / 10 -> AX contiene el cociente, DX contiene el residuo
-    add dl, '0'           ; Convertir el residuo (número) a su valor ASCII
-    mov [si], dl          ; Almacenar el carácter ASCII en el buffer
-
-    cmp ax, 0             ; Si el cociente es 0, hemos terminado
-    je .done_convert
-
-    jmp convert_loop
-
-.done_convert:
-    ret
-
-
 
 ;======================================
 check_B:
@@ -375,7 +351,7 @@ letraInvalida:
     mov bx, asterisco
     ret
 ;================================
-
+;rutina para limpiar la pantalla
 
 cls:
   pusha
@@ -386,9 +362,19 @@ cls:
   ret
 
 ;================================
-; Rutinas para imprimir cadenas (usa INT 10h, AH=0x0E)
+; Rutinas para imprimir la puntuacion 
+print_score:
+    mov bx, tens
+    call print_string
+    mov bx, units
+    call print_string
+    mov bx, newline_msg
+    call print_string
+    ret
+;================================
+; Rutinas para imprimir cadenas 
 
-print_string:                   ;cx = string length                                                                                                                                                          
+print_string:                                                                                                                                                                            
     mov ah, 0x0E
 .print_loop:                                                                                                                                                   
     mov al, [bx]
@@ -415,12 +401,34 @@ print_string_si:
 ;===============================
 ;Rutina para sumar numeros
 ;el numero debe estar iniciado como caracter
-;mov ax, [points] mover a ax el numero
+
+add_points:
+    mov ax, [units] ;mover a ax el numero
     sub ax, '0'
+    cmp ax, 9
+    je add_tens
     add ax, 1
     add ax, '0'
-;mov [points], ax devolver el numero a donde esta guardado
+    mov [units], ax ;devolver el numero a donde esta guardado
+    ret
 
+add_tens:
+    sub ax, 9
+    add ax, '0'
+    mov [units], ax
+    mov ax, [tens]
+    sub ax, '0'
+    cmp ax, 9
+    je add_cents
+    add ax, 1
+    add ax, '0'
+    mov [tens], ax
+    ret
+
+add_cents:
+    mov bx, how
+    call print_string
+    ret
 
 ;====================================
 ; Rutina para leer una cadena del teclado.
@@ -497,8 +505,9 @@ newline_msg db 0x0D, 0x0A, 0
 
 input_msg db "Lo que ingreso fue: ", 0
 
-points db '5', 0
-
+units db '0',0
+tens db '0',0
+how db "how?",0
 palabra_de_prueba db "marco", 0
 
 prompt db "Ingrese una letra (A-Z): ", 0x0D, 0x0A, 0x00
@@ -515,4 +524,8 @@ buffer5       times 28 db 0
 
 number_buffer db 10, 0
 
+numberTest: dd 435
+
 phonetic_spelling   times 128 db 0
+
+const10:    dd 10
