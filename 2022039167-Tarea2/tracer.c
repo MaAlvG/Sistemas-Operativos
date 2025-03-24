@@ -466,13 +466,15 @@ int main(int argc, char *argv[]) {
 
     pid_t child = fork();
     if (child == 0) {
-        // Hijo: Permitir ser rastreado y ejecutar el programa
+        // el hijo permite ser rastreado 
         ptrace(PTRACE_TRACEME, 0, NULL, NULL);
+
+        //ejecutar el programa
         execvp(argv[prog_index], &argv[prog_index]);
         perror("execvp");
         return 1;
     } else {
-        // Padre: Monitorea al hijo
+        // Monitorea al hijo
         trace_syscalls(child);
         print_syscall_summary();
     }
