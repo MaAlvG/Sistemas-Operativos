@@ -9,9 +9,9 @@
 #include <string.h>
 #include <errno.h>
 
-#define MAX_SYSCALLS 1000  // Cantidad máxima de syscalls a rastrear
+#define MAX_SYSCALLS 500  // Cantidad máxima de syscalls a rastrear
 
-// Tabla de nombres de system calls (basada en syscall.h de Linux)
+// Tabla de nombres de system calls
 const char *syscall_names[MAX_SYSCALLS] = {0};
 
 void init_syscall_names() {
@@ -377,25 +377,24 @@ void trace_syscalls(pid_t child) {
     
     int status;
     struct user_regs_struct regs;
-    int in_syscall =0;
+    int in_syscall = 0;//contador de system calls
 
     waitpid(child, &status, 0);
-    ptrace(PTRACE_SYSCALL, child, NULL, NULL); // Permitir la primera syscall
+    ptrace(PTRACE_SYSCALL, child, NULL, NULL); 
 
     while (1) {
         waitpid(child, &status, 0);
         if (WIFEXITED(status)) break;
 
-        // Capturar número de syscall
+        // Capturar número de syscall y traduce
         ptrace(PTRACE_GETREGS, child, NULL, &regs);
-
         long syscall_num = regs.orig_rax;
 
         if (syscall_num >= 0 && syscall_num < MAX_SYSCALLS && !in_syscall) {
             syscall_count[syscall_num]++;
             syscall_counter++;
 
-            in_syscall=1;
+            in_syscall=1;//distingui proceso de entrada y de salida
             if (verbose) {
                 if (syscall_names[syscall_num]) {
                     printf("Syscall: %s (%ld)\n", syscall_names[syscall_num], syscall_num);
@@ -471,7 +470,7 @@ int main(int argc, char *argv[]) {
 
         //ejecutar el programa
         execvp(argv[prog_index], &argv[prog_index]);
-        perror("execvp");
+        perror("execvp");//si encuentra un error
         return 1;
     } else {
         // Monitorea al hijo
