@@ -11,7 +11,7 @@
 
 #define MAX_SYSCALLS 1000  // Cantidad máxima de syscalls a rastrear
 
-// Tabla de nombres de system calls (basada en syscall.h de Linux)
+// Tabla de nombres de system calls
 const char *syscall_names[MAX_SYSCALLS] = {0};
 
 void init_syscall_names() {
@@ -377,7 +377,7 @@ void trace_syscalls(pid_t child) {
     
     int status;
     struct user_regs_struct regs;
-    int in_syscall =0;
+    int in_syscall =0; //distingue entre la entrada y la salida del proceso de ptrace
 
     waitpid(child, &status, 0);
     ptrace(PTRACE_SYSCALL, child, NULL, NULL); // Permitir la primera syscall
@@ -388,7 +388,6 @@ void trace_syscalls(pid_t child) {
 
         // Capturar número de syscall
         ptrace(PTRACE_GETREGS, child, NULL, &regs);
-
         long syscall_num = regs.orig_rax;
 
         if (syscall_num >= 0 && syscall_num < MAX_SYSCALLS && !in_syscall) {
@@ -413,7 +412,7 @@ void trace_syscalls(pid_t child) {
             in_syscall=0;
         }
 
-        ptrace(PTRACE_SYSCALL, child, NULL, NULL); // Continuar ejecución
+        ptrace(PTRACE_SYSCALL, child, NULL, NULL); 
     }
 }
 
