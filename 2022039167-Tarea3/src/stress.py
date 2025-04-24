@@ -2,12 +2,12 @@ import threading
 import subprocess
 import sys
 
-def run_client(url):
-    subprocess.run(["./HTTPclient", url])
+def run_client(params):
+    subprocess.run(["./bin/HTTPclient"] + params)  # Pass all client parameters
 
 def main():
     if len(sys.argv) < 5 or sys.argv[1] != "-n" or sys.argv[3] != "HTTPclient":
-        print("Usage: stress -n <num_threads> HTTPclient <url>")
+        print("Usage: stress -n <num_threads> HTTPclient <client_params>")
         return
     
     try:
@@ -18,11 +18,11 @@ def main():
         print("Error: <num_threads> must be a positive integer.")
         return
 
-    url = sys.argv[4]
+    client_params = sys.argv[4:]  # Collect all parameters after "HTTPclient"
     
     threads = []
     for i in range(num_threads):
-        t = threading.Thread(target=run_client, args=(url,))
+        t = threading.Thread(target=run_client, args=(client_params,))
         threads.append(t)
         t.start()
     

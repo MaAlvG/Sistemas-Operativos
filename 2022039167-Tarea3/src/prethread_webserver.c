@@ -5,10 +5,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <pthread.h>
-#include <asm-generic/socket.h>
 #include <semaphore.h>
 
-#define PORT 8080
 #define BUFFER_SIZE 1024
 
 typedef struct {
@@ -48,21 +46,40 @@ void* handle_client(void* arg) {
     return NULL;
 }
 
-int main(int argc, char const *argv[]) {
-    if (argc != 2) {
-        fprintf(stderr, "Usage: %s <number_of_threads>\n", argv[0]);
+int main(int argc, char *argv[]) {
+    int num_threads = 0;
+    char *http_root = NULL;
+    int port = 0;
+
+    // Parse command-line arguments
+    int opt;
+    while ((opt = getopt(argc, argv, "n:w:p:")) != -1) {
+        switch (opt) {
+            case 'n':
+                num_threads = atoi(optarg);
+                break;
+            case 'w':
+                http_root = optarg;
+                break;
+            case 'p':
+                port = atoi(optarg);
+                break;
+            default:
+                fprintf(stderr, "Usage: %s -n <number_of_threads> -w <HTTP-root> -p <port>\n", argv[0]);
+                exit(EXIT_FAILURE);
+        }
+    }
+
+    if (num_threads <= 0 || http_root == NULL || port <= 0) {
+        fprintf(stderr, "Usage: %s -n <number_of_threads> -w <HTTP-root> -p <port>\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 
-    int num_threads = atoi(argv[1]);
-    if (num_threads <= 0) {
-        fprintf(stderr, "Number of threads must be greater than 0\n");
-        exit(EXIT_FAILURE);
-    }
+    printf("Starting server with %d threads, root directory: %s, port: %d\n", num_threads, http_root, port);
 
     int server_fd;
     struct sockaddr_in address;
-    int opt = 1;
+    int opt_val = 1;
     int addrlen = sizeof(address);
     
     // Create socket file descriptor
@@ -72,14 +89,14 @@ int main(int argc, char const *argv[]) {
     }
     
     // Set socket options
-    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) {
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt_val, sizeof(opt_val))) {
         perror("setsockopt");
         exit(EXIT_FAILURE);
     }
     
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = htons(PORT);
+    address.sin_port = htons(port);
     
     // Bind socket to port
     if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
@@ -93,7 +110,7 @@ int main(int argc, char const *argv[]) {
         exit(EXIT_FAILURE);
     }
     
-    printf("Server started on port %d\n", PORT);
+    printf("Server started on port %d\n", port);
     
     // Initialize semaphore
     sem_init(&thread_semaphore, 0, num_threads);
