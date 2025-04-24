@@ -7,10 +7,7 @@
 #include <pthread.h>
 #include <semaphore.h>
 
-<<<<<<< HEAD
-=======
 #define DEFAULT_PORT 8080
->>>>>>> 011d5b5 (web server arguments)
 #define BUFFER_SIZE 1024
 
 typedef struct {
@@ -49,48 +46,15 @@ void* handle_client(void* arg) {
     
     return NULL;
 }
-<<<<<<< HEAD
-
-int main(int argc, char *argv[]) {
-    int num_threads = 0;
-    char *http_root = NULL;
-    int port = 0;
-
-    // Parse command-line arguments
-    int opt;
-    while ((opt = getopt(argc, argv, "n:w:p:")) != -1) {
-        switch (opt) {
-            case 'n':
-                num_threads = atoi(optarg);
-                break;
-            case 'w':
-                http_root = optarg;
-                break;
-            case 'p':
-                port = atoi(optarg);
-                break;
-            default:
-                fprintf(stderr, "Usage: %s -n <number_of_threads> -w <HTTP-root> -p <port>\n", argv[0]);
-                exit(EXIT_FAILURE);
-        }
-    }
-
-    if (num_threads <= 0 || http_root == NULL || port <= 0) {
-        fprintf(stderr, "Usage: %s -n <number_of_threads> -w <HTTP-root> -p <port>\n", argv[0]);
-=======
 //-n hils -w httproot -p puerto
 int main(int argc, char *argv[]) {
     
     /*
     if (argc != 2) {
         fprintf(stderr, "Usage: %s <number_of_threads>\n", argv[0]);
->>>>>>> 011d5b5 (web server arguments)
         exit(EXIT_FAILURE);
     }*/
 
-<<<<<<< HEAD
-    printf("Starting server with %d threads, root directory: %s, port: %d\n", num_threads, http_root, port);
-=======
     int arg_opt;
     int num_threads = 10;
     char *direction = NULL;
@@ -121,7 +85,6 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Number of threads must be greater than 0\n");
         exit(EXIT_FAILURE);
     }*/
->>>>>>> 011d5b5 (web server arguments)
 
     int server_fd;
     struct sockaddr_in address;
