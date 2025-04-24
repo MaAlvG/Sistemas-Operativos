@@ -377,7 +377,11 @@ void trace_syscalls(pid_t child) {
     
     int status;
     struct user_regs_struct regs;
+<<<<<<< HEAD:2022039167-Tarea2/tracer.c
     int in_syscall = 0;//contador de system calls
+=======
+    int in_syscall =0; //distingue entre la entrada y la salida del proceso de ptrace
+>>>>>>> refs/remotes/origin/main:2022039167-Tarea2/rastreador.c
 
     waitpid(child, &status, 0);
     ptrace(PTRACE_SYSCALL, child, NULL, NULL); 
@@ -412,7 +416,7 @@ void trace_syscalls(pid_t child) {
             in_syscall=0;
         }
 
-        ptrace(PTRACE_SYSCALL, child, NULL, NULL); // Continuar ejecución
+        ptrace(PTRACE_SYSCALL, child, NULL, NULL); 
     }
 }
 
