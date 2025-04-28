@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/socket.h>
+#include <asm-generic/socket.h>
 #include <netinet/in.h>
 #include <pthread.h>
 #include <semaphore.h>
@@ -16,6 +17,57 @@ typedef struct {
 } thread_args;
 
 sem_t thread_semaphore; // Semaphore to track available threads
+
+void get_request(int client_socket, const char* request) {
+    // Example GET response
+    char *response = "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 12\n\nHello world!";
+    write(client_socket, response, strlen(response));
+}
+
+void post_request(int client_socket, const char* request) {
+    // Example POST response
+    char *response = "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 7\n\nPosted!";
+    write(client_socket, response, strlen(response));
+}
+
+void head_request(int client_socket, const char* request) {
+    // Example HEAD response (headers only, no body)
+    char *response = "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 0\n\n";
+    write(client_socket, response, strlen(response));
+}
+
+void put_request(int client_socket, const char* request) {
+    // Example PUT response
+    char *response = "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 6\n\nUpdated";
+    write(client_socket, response, strlen(response));
+}
+
+void delete_request(int client_socket, const char* request) {
+    // Example DELETE response
+    char *response = "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 7\n\nDeleted";
+    write(client_socket, response, strlen(response));
+}
+
+void handle_request(int client_socket, const char* request) {
+    char method[8]; // To store the HTTP method (e.g., GET, POST)
+    sscanf(request, "%s", method); // Extract the method from the request
+
+    if (strcmp(method, "GET") == 0) {
+        get_request(client_socket, request);
+    } else if (strcmp(method, "POST") == 0) {
+        post_request(client_socket, request);
+    } else if (strcmp(method, "HEAD") == 0) {
+        head_request(client_socket, request);
+    } else if (strcmp(method, "PUT") == 0) {
+        put_request(client_socket, request);
+    } else if (strcmp(method, "DELETE") == 0) {
+        delete_request(client_socket, request);
+    } else {
+        // Handle unsupported methods
+        char *response = "HTTP/1.1 405 Method Not Allowed\nContent-Length: 0\n\n";
+        write(client_socket, response, strlen(response));
+    }
+}
 
 void* handle_client(void* arg) {
     thread_args* args = (thread_args*)arg;
@@ -37,15 +89,15 @@ void* handle_client(void* arg) {
         read(new_socket, buffer, BUFFER_SIZE);
         printf("Thread %d received request:\n%s\n", args->thread_id, buffer);
         
-        // Simple HTTP response
-        char *response = "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 12\n\nHello world!";
-        write(new_socket, response, strlen(response));
+        handle_request(new_socket, buffer); // Delegate to handle_request()
+        
         close(new_socket);
         sem_post(&thread_semaphore); // Release the thread slot
     }
     
     return NULL;
 }
+
 //-n hils -w httproot -p puerto
 int main(int argc, char *argv[]) {
     
