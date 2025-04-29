@@ -26,10 +26,12 @@ int file_exists(const char *path) {
 
 // GET: Read and return the content of a file
 void get_request(int client_socket, const char* request) {
-    char file_path[BUFFER_SIZE] = "./data"; // Base directory
-    sscanf(request, "GET /%s", file_path + 7); // Append requested file to path
+    char base_directory[6] = "./data";
+    char file_path[1000] = "./data"; // Base directory
+    int result = sscanf(request, "GET %s ", file_path + 6);
 
     if (file_exists(file_path)) {
+        //printf(file_path);
         FILE *file = fopen(file_path, "r");
         if (file) {
             fseek(file, 0, SEEK_END);
@@ -61,7 +63,7 @@ void get_request(int client_socket, const char* request) {
 // POST: Create a new file with the provided content
 void post_request(int client_socket, const char* request) {
     char file_path[BUFFER_SIZE] = "./data";
-    sscanf(request, "POST /%s", file_path + 7);
+    sscanf(request, "POST %s", file_path + 6);
 
     char *body = strstr(request, "\r\n\r\n");
     if (body) {
@@ -86,7 +88,7 @@ void post_request(int client_socket, const char* request) {
 // HEAD: Return only the headers for a file
 void head_request(int client_socket, const char* request) {
     char file_path[BUFFER_SIZE] = "./data";
-    sscanf(request, "HEAD /%s", file_path + 7);
+    sscanf(request, "HEAD %s", file_path + 6);
 
     if (file_exists(file_path)) {
         struct stat file_stat;
@@ -106,7 +108,7 @@ void head_request(int client_socket, const char* request) {
 // PUT: Update or create a file with the provided content
 void put_request(int client_socket, const char* request) {
     char file_path[BUFFER_SIZE] = "./data";
-    sscanf(request, "PUT /%s", file_path + 7);
+    sscanf(request, "PUT %s", file_path + 6);
 
     char *body = strstr(request, "\r\n\r\n");
     if (body) {
@@ -131,7 +133,7 @@ void put_request(int client_socket, const char* request) {
 // DELETE: Delete a file
 void delete_request(int client_socket, const char* request) {
     char file_path[BUFFER_SIZE] = "./data";
-    sscanf(request, "DELETE /%s", file_path + 7);
+    sscanf(request, "DELETE %s", file_path + 6);
 
     if (file_exists(file_path)) {
         if (remove(file_path) == 0) {
@@ -148,9 +150,9 @@ void delete_request(int client_socket, const char* request) {
 }
 
 void handle_request(int client_socket, const char* request) {
+    
     char method[8]; // To store the HTTP method (e.g., GET, POST)
     sscanf(request, "%s", method); // Extract the method from the request
-
     if (strcmp(method, "GET") == 0) {
         get_request(client_socket, request);
     } else if (strcmp(method, "POST") == 0) {
