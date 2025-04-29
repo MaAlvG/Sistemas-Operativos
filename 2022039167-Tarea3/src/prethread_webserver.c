@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 #include <pthread.h>
 #include <semaphore.h>
+#include <sys/stat.h>
 
 #define DEFAULT_PORT 8080
 #define BUFFER_SIZE 1024
@@ -18,34 +19,132 @@ typedef struct {
 
 sem_t thread_semaphore; // Semaphore to track available threads
 
+int file_exists(const char *path) {
+    struct stat buffer;
+    return (stat(path, &buffer) == 0);
+}
+
+// GET: Read and return the content of a file
 void get_request(int client_socket, const char* request) {
-    // Example GET response
-    char *response = "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 12\n\nHello world!";
-    write(client_socket, response, strlen(response));
+    char file_path[BUFFER_SIZE] = "./data"; // Base directory
+    sscanf(request, "GET /%s", file_path + 7); // Append requested file to path
+
+    if (file_exists(file_path)) {
+        FILE *file = fopen(file_path, "r");
+        if (file) {
+            fseek(file, 0, SEEK_END);
+            long file_size = ftell(file);
+            rewind(file);
+
+            char *content = malloc(file_size + 1);
+            fread(content, 1, file_size, file);
+            content[file_size] = '\0';
+
+            char response[BUFFER_SIZE];
+            snprintf(response, sizeof(response),
+                     "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: %ld\n\n%s",
+                     file_size, content);
+            write(client_socket, response, strlen(response));
+
+            free(content);
+            fclose(file);
+        } else {
+            char *response = "HTTP/1.1 500 Internal Server Error\nContent-Length: 0\n\n";
+            write(client_socket, response, strlen(response));
+        }
+    } else {
+        char *response = "HTTP/1.1 404 Not Found\nContent-Length: 0\n\n";
+        write(client_socket, response, strlen(response));
+    }
 }
 
+// POST: Create a new file with the provided content
 void post_request(int client_socket, const char* request) {
-    // Example POST response
-    char *response = "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 7\n\nPosted!";
-    write(client_socket, response, strlen(response));
+    char file_path[BUFFER_SIZE] = "./data";
+    sscanf(request, "POST /%s", file_path + 7);
+
+    char *body = strstr(request, "\r\n\r\n");
+    if (body) {
+        body += 4; // Skip the "\r\n\r\n"
+        FILE *file = fopen(file_path, "w");
+        if (file) {
+            fwrite(body, 1, strlen(body), file);
+            fclose(file);
+
+            char *response = "HTTP/1.1 201 Created\nContent-Length: 0\n\n";
+            write(client_socket, response, strlen(response));
+        } else {
+            char *response = "HTTP/1.1 500 Internal Server Error\nContent-Length: 0\n\n";
+            write(client_socket, response, strlen(response));
+        }
+    } else {
+        char *response = "HTTP/1.1 400 Bad Request\nContent-Length: 0\n\n";
+        write(client_socket, response, strlen(response));
+    }
 }
 
+// HEAD: Return only the headers for a file
 void head_request(int client_socket, const char* request) {
-    // Example HEAD response (headers only, no body)
-    char *response = "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 0\n\n";
-    write(client_socket, response, strlen(response));
+    char file_path[BUFFER_SIZE] = "./data";
+    sscanf(request, "HEAD /%s", file_path + 7);
+
+    if (file_exists(file_path)) {
+        struct stat file_stat;
+        stat(file_path, &file_stat);
+
+        char response[BUFFER_SIZE];
+        snprintf(response, sizeof(response),
+                 "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: %ld\n\n",
+                 file_stat.st_size);
+        write(client_socket, response, strlen(response));
+    } else {
+        char *response = "HTTP/1.1 404 Not Found\nContent-Length: 0\n\n";
+        write(client_socket, response, strlen(response));
+    }
 }
 
+// PUT: Update or create a file with the provided content
 void put_request(int client_socket, const char* request) {
-    // Example PUT response
-    char *response = "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 6\n\nUpdated";
-    write(client_socket, response, strlen(response));
+    char file_path[BUFFER_SIZE] = "./data";
+    sscanf(request, "PUT /%s", file_path + 7);
+
+    char *body = strstr(request, "\r\n\r\n");
+    if (body) {
+        body += 4; // Skip the "\r\n\r\n"
+        FILE *file = fopen(file_path, "w");
+        if (file) {
+            fwrite(body, 1, strlen(body), file);
+            fclose(file);
+
+            char *response = "HTTP/1.1 200 OK\nContent-Length: 0\n\n";
+            write(client_socket, response, strlen(response));
+        } else {
+            char *response = "HTTP/1.1 500 Internal Server Error\nContent-Length: 0\n\n";
+            write(client_socket, response, strlen(response));
+        }
+    } else {
+        char *response = "HTTP/1.1 400 Bad Request\nContent-Length: 0\n\n";
+        write(client_socket, response, strlen(response));
+    }
 }
 
+// DELETE: Delete a file
 void delete_request(int client_socket, const char* request) {
-    // Example DELETE response
-    char *response = "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 7\n\nDeleted";
-    write(client_socket, response, strlen(response));
+    char file_path[BUFFER_SIZE] = "./data";
+    sscanf(request, "DELETE /%s", file_path + 7);
+
+    if (file_exists(file_path)) {
+        if (remove(file_path) == 0) {
+            char *response = "HTTP/1.1 200 OK\nContent-Length: 0\n\n";
+            write(client_socket, response, strlen(response));
+        } else {
+            char *response = "HTTP/1.1 500 Internal Server Error\nContent-Length: 0\n\n";
+            write(client_socket, response, strlen(response));
+        }
+    } else {
+        char *response = "HTTP/1.1 404 Not Found\nContent-Length: 0\n\n";
+        write(client_socket, response, strlen(response));
+    }
 }
 
 void handle_request(int client_socket, const char* request) {
