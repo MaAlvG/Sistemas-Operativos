@@ -6,8 +6,8 @@ def run_client(params):
     subprocess.run(["./bin/HTTPclient"] + params)  # Pass all client parameters
 
 def main():
-    if len(sys.argv) < 5 or sys.argv[1] != "-n" or sys.argv[3] != "HTTPclient":
-        print("Usage: stress -n <num_threads> HTTPclient <client_params>")
+    if len(sys.argv) < 6 or sys.argv[1] != "-n" or sys.argv[3] != "HTTPclient":
+        print("Usage: stress -n <num_threads> HTTPclient -h <host> <method> <target> [<data>]")
         return
     
     try:
