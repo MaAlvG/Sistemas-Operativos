@@ -1,0 +1,10 @@
+# Ejecutar el cliente
+./bin/HTTPclient -h http://localhost:8080 GET /example.txt
+
+./bin/HTTPclient -h http://localhost:8080 POST /newfile.txt "This is the file content"
+
+./bin/HTTPclient -h http://localhost:8080 PUT /existingfile.txt "Updated content"
+
+./bin/HTTPclient -h http://localhost:8080 DELETE /unwantedfile.txt
+
+./bin/HTTPclient -h http://localhost:8080 HEAD /example.txt
