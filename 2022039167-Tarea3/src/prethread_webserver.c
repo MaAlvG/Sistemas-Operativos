@@ -18,64 +18,35 @@ typedef struct {
 } thread_args;
 
 sem_t thread_semaphore; // Semaphore to track available threads
-char root_directory[BUFFER_SIZE] = "./data"; // Default root directory
 
 int file_exists(const char *path) {
     struct stat buffer;
     return (stat(path, &buffer) == 0);
 }
 
-const char* get_content_type(const char* file_path) {
-    const char *ext = strrchr(file_path, '.'); // Buscar la extensión
-    if (ext == NULL) return "application/octet-stream"; // Tipo predeterminado
-
-    if (strcmp(ext, ".html") == 0) return "text/html";
-    if (strcmp(ext, ".txt") == 0) return "text/plain";
-    if (strcmp(ext, ".jpg") == 0 || strcmp(ext, ".jpeg") == 0) return "image/jpeg";
-    if (strcmp(ext, ".png") == 0) return "image/png";
-    if (strcmp(ext, ".gif") == 0) return "image/gif";
-    if (strcmp(ext, ".css") == 0) return "text/css";
-    if (strcmp(ext, ".js") == 0) return "application/javascript";
-    if (strcmp(ext, ".pdf") == 0) return "application/pdf";
-
-    // Otros tipos de archivo
-    return "application/octet-stream"; // Tipo genérico binario
-}
-
 // GET: Read and return the content of a file
 void get_request(int client_socket, const char* request) {
-    char file_path[BUFFER_SIZE];
-    snprintf(file_path, sizeof(file_path), "%s", root_directory); // Use root_directory
-    sscanf(request, "GET %s ", file_path + strlen(root_directory));
+    char base_directory[6] = "./data";
+    char file_path[1000] = "./data"; // Base directory
+    int result = sscanf(request, "GET %s ", file_path + 6);
 
-    printf("\np1%s\n", file_path);
     if (file_exists(file_path)) {
-        printf("\np2%s\n", file_path);
-        FILE *file = fopen(file_path, "rb"); // Open in binary mode
+        //printf(file_path);
+        FILE *file = fopen(file_path, "r");
         if (file) {
             fseek(file, 0, SEEK_END);
             long file_size = ftell(file);
             rewind(file);
 
-            char *content = malloc(file_size);
+            char *content = malloc(file_size + 1);
             fread(content, 1, file_size, file);
+            content[file_size] = '\0';
 
-            // char response[BUFFER_SIZE];
-            // snprintf(response, sizeof(response),
-            //          "HTTP/1.1 200 OK\nContent-Type: application/octet-stream\nContent-Length: %ld\n\n",
-            //          file_size);
-            // write(client_socket, response, strlen(response));
-            // write(client_socket, content, file_size); // Send binary content
-
-            const char *content_type = get_content_type(file_path); // Detectar tipo de archivo
-            char response_header[BUFFER_SIZE];
-            
-            snprintf(response_header, sizeof(response_header),
-                     "HTTP/1.1 200 OK\nContent-Type: %s\nContent-Length: %ld\n\n",
-                     content_type, file_size);
-
-            write(client_socket, response_header, strlen(response_header)); // Enviar encabezado
-            write(client_socket, content, file_size);
+            char response[BUFFER_SIZE];
+            snprintf(response, sizeof(response),
+                     "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: %ld\n\n%s",
+                     file_size, content);
+            write(client_socket, response, strlen(response));
 
             free(content);
             fclose(file);
@@ -116,38 +87,21 @@ void post_request(int client_socket, const char* request) {
 
 // HEAD: Return only the headers for a file
 void head_request(int client_socket, const char* request) {
-    char file_path[BUFFER_SIZE];
-    snprintf(file_path, sizeof(file_path), "%s", root_directory); // Use root_directory
-    sscanf(request, "HEAD %s", file_path + strlen(root_directory));
-    
+    char file_path[BUFFER_SIZE] = "./data";
+    sscanf(request, "HEAD %s", file_path + 6);
+
     if (file_exists(file_path)) {
-        printf("\npath %s\n", file_path);
         struct stat file_stat;
-        if (stat(file_path, &file_stat) != 0) {
-            // char response[BUFFER_SIZE];
-            // snprintf(response, sizeof(response),
-            //          "HTTP/1.1 200 OK\r\n"
-            //          "Content-Type: application/octet-stream\r\n"
-            //          "Content-Length: %ld\r\n\r\n", // Ensure proper HTTP header formatting
-            //          file_stat.st_size);
-            // write(client_socket, response, strlen(response)); // Send only headers
+        stat(file_path, &file_stat);
 
-            const char *content_type = get_content_type(file_path); // Detectar tipo de archivo
-            char response_header[BUFFER_SIZE];
-            
-            snprintf(response_header, sizeof(response_header),
-                        "HTTP/1.1 200 OK\nContent-Type: %s\nContent-Length: %ld\n\n",
-                        content_type, file_stat.st_size);
-
-            write(client_socket, response_header, strlen(response_header));
-
-        } else {
-            char *response = "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n";
-            write(client_socket, response, strlen(response)); // Send error headers
-        }
+        char response[BUFFER_SIZE];
+        snprintf(response, sizeof(response),
+                 "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: %ld\n\n",
+                 file_stat.st_size);
+        write(client_socket, response, strlen(response));
     } else {
-        char *response = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
-        write(client_socket, response, strlen(response)); // Send error headers
+        char *response = "HTTP/1.1 404 Not Found\nContent-Length: 0\n\n";
+        write(client_socket, response, strlen(response));
     }
 }
 
@@ -196,6 +150,7 @@ void delete_request(int client_socket, const char* request) {
 }
 
 void handle_request(int client_socket, const char* request) {
+    
     char method[8]; // To store the HTTP method (e.g., GET, POST)
     sscanf(request, "%s", method); // Extract the method from the request
     if (strcmp(method, "GET") == 0) {
@@ -246,8 +201,10 @@ void* handle_client(void* arg) {
 
 //-n hils -w httproot -p puerto
 int main(int argc, char *argv[]) {
+
     int arg_opt;
     int num_threads = 10;
+    char *direction = NULL;
     int port = DEFAULT_PORT;
     extern char *optarg;
     extern int optind;
@@ -258,17 +215,17 @@ int main(int argc, char *argv[]) {
                 num_threads = atoi(optarg);
                 break;
             case 'w':
-                snprintf(root_directory, sizeof(root_directory), "%s", optarg); // Update root_directory
+                direction = optarg;
                 break;
             case 'p':
                 port = atoi(optarg);
                 break;
             default:
-                fprintf(stderr, "Uso: %s [-n hilos] [-w direccion] [-p puerto]\n", argv[0]);
+                fprintf(stderr, "Uso: %s [-n hilos] [-W direccion] [-p puerto]\n", argv[0]);
                 exit(EXIT_FAILURE);
         }
     }
-    fprintf(stderr, "Uso: %s [-n hilos] [-w direccion] [-p puerto]\n", argv[0]);
+    fprintf(stderr, "Uso: %s [-n hilos] [-W direccion] [-p puerto]\n", argv[0]);
 
     int server_fd;
     struct sockaddr_in address;
