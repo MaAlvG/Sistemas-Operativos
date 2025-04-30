@@ -18,6 +18,7 @@ typedef struct {
 } thread_args;
 
 sem_t thread_semaphore; // Semaphore to track available threads
+char root_directory[BUFFER_SIZE] = "./data"; // Default root directory
 
 int file_exists(const char *path) {
     struct stat buffer;
@@ -26,27 +27,26 @@ int file_exists(const char *path) {
 
 // GET: Read and return the content of a file
 void get_request(int client_socket, const char* request) {
-    char base_directory[6] = "./data";
-    char file_path[1000] = "./data"; // Base directory
-    int result = sscanf(request, "GET %s ", file_path + 6);
+    char file_path[BUFFER_SIZE];
+    snprintf(file_path, sizeof(file_path), "%s", root_directory); // Use root_directory
+    sscanf(request, "GET %s ", file_path + strlen(root_directory));
 
     if (file_exists(file_path)) {
-        //printf(file_path);
-        FILE *file = fopen(file_path, "r");
+        FILE *file = fopen(file_path, "rb"); // Open in binary mode
         if (file) {
             fseek(file, 0, SEEK_END);
             long file_size = ftell(file);
             rewind(file);
 
-            char *content = malloc(file_size + 1);
+            char *content = malloc(file_size);
             fread(content, 1, file_size, file);
-            content[file_size] = '\0';
 
             char response[BUFFER_SIZE];
             snprintf(response, sizeof(response),
-                     "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: %ld\n\n%s",
-                     file_size, content);
+                     "HTTP/1.1 200 OK\nContent-Type: application/octet-stream\nContent-Length: %ld\n\n",
+                     file_size);
             write(client_socket, response, strlen(response));
+            write(client_socket, content, file_size); // Send binary content
 
             free(content);
             fclose(file);
@@ -87,21 +87,27 @@ void post_request(int client_socket, const char* request) {
 
 // HEAD: Return only the headers for a file
 void head_request(int client_socket, const char* request) {
-    char file_path[BUFFER_SIZE] = "./data";
-    sscanf(request, "HEAD %s", file_path + 6);
+    char file_path[BUFFER_SIZE];
+    snprintf(file_path, sizeof(file_path), "%s", root_directory); // Use root_directory
+    sscanf(request, "HEAD %s", file_path + strlen(root_directory));
 
     if (file_exists(file_path)) {
         struct stat file_stat;
-        stat(file_path, &file_stat);
-
-        char response[BUFFER_SIZE];
-        snprintf(response, sizeof(response),
-                 "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: %ld\n\n",
-                 file_stat.st_size);
-        write(client_socket, response, strlen(response));
+        if (stat(file_path, &file_stat) == 0) {
+            char response[BUFFER_SIZE];
+            snprintf(response, sizeof(response),
+                     "HTTP/1.1 200 OK\r\n"
+                     "Content-Type: application/octet-stream\r\n"
+                     "Content-Length: %ld\r\n\r\n", // Ensure proper HTTP header formatting
+                     file_stat.st_size);
+            write(client_socket, response, strlen(response)); // Send only headers
+        } else {
+            char *response = "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n";
+            write(client_socket, response, strlen(response)); // Send error headers
+        }
     } else {
-        char *response = "HTTP/1.1 404 Not Found\nContent-Length: 0\n\n";
-        write(client_socket, response, strlen(response));
+        char *response = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
+        write(client_socket, response, strlen(response)); // Send error headers
     }
 }
 
@@ -150,7 +156,6 @@ void delete_request(int client_socket, const char* request) {
 }
 
 void handle_request(int client_socket, const char* request) {
-    
     char method[8]; // To store the HTTP method (e.g., GET, POST)
     sscanf(request, "%s", method); // Extract the method from the request
     if (strcmp(method, "GET") == 0) {
@@ -201,16 +206,8 @@ void* handle_client(void* arg) {
 
 //-n hils -w httproot -p puerto
 int main(int argc, char *argv[]) {
-    
-    /*
-    if (argc != 2) {
-        fprintf(stderr, "Usage: %s <number_of_threads>\n", argv[0]);
-        exit(EXIT_FAILURE);
-    }*/
-
     int arg_opt;
     int num_threads = 10;
-    char *direction = NULL;
     int port = DEFAULT_PORT;
     extern char *optarg;
     extern int optind;
@@ -221,23 +218,17 @@ int main(int argc, char *argv[]) {
                 num_threads = atoi(optarg);
                 break;
             case 'w':
-                direction = optarg;
+                snprintf(root_directory, sizeof(root_directory), "%s", optarg); // Update root_directory
                 break;
             case 'p':
                 port = atoi(optarg);
                 break;
             default:
-                fprintf(stderr, "Uso: %s [-n hilos] [-W direccion] [-p puerto]\n", argv[0]);
+                fprintf(stderr, "Uso: %s [-n hilos] [-w direccion] [-p puerto]\n", argv[0]);
                 exit(EXIT_FAILURE);
         }
     }
-    fprintf(stderr, "Uso: %s [-n hilos] [-W direccion] [-p puerto]\n", argv[0]);
-    /*
-    int num_threads = atoi(argv[1]);
-    if (num_threads <= 0) {
-        fprintf(stderr, "Number of threads must be greater than 0\n");
-        exit(EXIT_FAILURE);
-    }*/
+    fprintf(stderr, "Uso: %s [-n hilos] [-w direccion] [-p puerto]\n", argv[0]);
 
     int server_fd;
     struct sockaddr_in address;
