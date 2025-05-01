@@ -15,6 +15,7 @@
 typedef struct {
     int server_fd;
     int thread_id;
+    int port;
 } thread_args;
 
 sem_t thread_semaphore; // Semaphore to track available threads
@@ -31,22 +32,21 @@ void get_request(int client_socket, const char* request) {
     int result = sscanf(request, "GET %s ", file_path + 6);
 
     if (file_exists(file_path)) {
-        //printf(file_path);
-        FILE *file = fopen(file_path, "r");
+        FILE *file = fopen(file_path, "rb"); // Open in binary mode
         if (file) {
             fseek(file, 0, SEEK_END);
             long file_size = ftell(file);
             rewind(file);
 
-            char *content = malloc(file_size + 1);
-            fread(content, 1, file_size, file);
-            content[file_size] = '\0';
+            char *content = malloc(file_size);
+            fread(content, 1, file_size, file); // Read binary data
 
-            char response[BUFFER_SIZE];
-            snprintf(response, sizeof(response),
-                     "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: %ld\n\n%s",
-                     file_size, content);
-            write(client_socket, response, strlen(response));
+            char response_header[BUFFER_SIZE];
+            snprintf(response_header, sizeof(response_header),
+                     "HTTP/1.1 200 OK\nContent-Type: application/octet-stream\nContent-Length: %ld\n\n",
+                     file_size);
+            write(client_socket, response_header, strlen(response_header)); // Send header
+            write(client_socket, content, file_size); // Send binary content
 
             free(content);
             fclose(file);
@@ -176,9 +176,10 @@ void* handle_client(void* arg) {
     struct sockaddr_in address;
     int addrlen = sizeof(address);
     char buffer[BUFFER_SIZE] = {0};
-    
-    printf("Thread %d waiting for connections...\n", args->thread_id);
-    
+    char response[BUFFER_SIZE];
+
+    printf("Thread %d waiting for connections on port %d...\n", args->thread_id, args->port);
+
     while (1) {
         sem_wait(&thread_semaphore); // Wait for an available thread slot
         if ((new_socket = accept(args->server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0) {
@@ -186,16 +187,62 @@ void* handle_client(void* arg) {
             sem_post(&thread_semaphore); // Release the thread slot
             continue;
         }
-        
+
         read(new_socket, buffer, BUFFER_SIZE);
-        printf("Thread %d received request:\n%s\n", args->thread_id, buffer);
-        
-        handle_request(new_socket, buffer); // Delegate to handle_request()
-        
+        printf("Thread %d received request on port %d:\n%s\n", args->thread_id, args->port, buffer);
+
+        switch (args->port) {
+            case 21: // FTP
+                snprintf(response, sizeof(response),
+                         "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 24\n\nReceived FTP request");
+                write(new_socket, response, strlen(response));
+                break;
+
+            case 22: // SSH
+                snprintf(response, sizeof(response),
+                         "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 25\n\nReceived SSH request");
+                write(new_socket, response, strlen(response));
+                break;
+
+            case 23: // Telnet
+                snprintf(response, sizeof(response),
+                         "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 28\n\nReceived Telnet request");
+                write(new_socket, response, strlen(response));
+                break;
+
+            case 25: // SMTP
+                snprintf(response, sizeof(response),
+                         "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 27\n\nReceived SMTP request");
+                write(new_socket, response, strlen(response));
+                break;
+
+            case 53: // DNS
+                snprintf(response, sizeof(response),
+                         "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 26\n\nReceived DNS request");
+                write(new_socket, response, strlen(response));
+                break;
+
+            case 161: // SNMP
+                snprintf(response, sizeof(response),
+                         "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 27\n\nReceived SNMP request");
+                write(new_socket, response, strlen(response));
+                break;
+
+            case 8080: // HTTP
+                handle_request(new_socket, buffer); // Delegate to handle_request()
+                break;
+
+            default:
+                snprintf(response, sizeof(response),
+                         "HTTP/1.1 400 Bad Request\nContent-Type: text/plain\nContent-Length: 28\n\nUnknown protocol on port.");
+                write(new_socket, response, strlen(response));
+                break;
+        }
+
         close(new_socket);
         sem_post(&thread_semaphore); // Release the thread slot
     }
-    
+
     return NULL;
 }
 
@@ -272,6 +319,7 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < num_threads; i++) {
         args[i].server_fd = server_fd;
         args[i].thread_id = i;
+        args[i].port = port; // Pass the port number to each thread
         pthread_create(&threads[i], NULL, handle_client, &args[i]);
     }
     
