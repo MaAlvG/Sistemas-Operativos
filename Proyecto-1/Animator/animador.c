@@ -120,6 +120,38 @@ int rotate(Object* obj, int new_angle){
         return 0;
 
     int rotations = new_angle/90;
+    printf("\n%d, %d, %d\n",obj->height,obj->width, rotations);
+
+    // while(rotations){
+    //     char new_drawing[obj->width][obj->height];
+    //     int old_width = obj->width;
+    //     int old_height = obj->height;
+
+    //     int x = old_height-1;
+    //     for(int i = 0; i < old_height;i++){
+    //         for(int j = 0; j < old_width; j++){
+                
+    //             new_drawing[j][x] = obj->drawing[i][j];
+    //             //obj->drawing[i][j] = 0;
+                
+    //             printf("i%d, j%d, x%d: %c|",i,j,x,new_drawing[j][x]);
+    //         }
+    //         x--;
+    //         printf("\n");
+    //     }
+
+    //     for(int i = 0; i < old_height;i++){
+    //         for(int j = 0; j < old_width; j++){
+                
+    //             obj->drawing[i][j] = new_drawing[i][j];
+    //         }
+    //     }
+
+    //     obj->height = old_width;
+    //     obj->width = old_height;
+    //     rotations--;
+    // }
+    // printf("\n%d, %d, %d\n",obj->height,obj->width, rotations);
 
     while(rotations){
         char new_drawing[obj->width][obj->height];
@@ -127,20 +159,27 @@ int rotate(Object* obj, int new_angle){
         int old_width = obj->width;
         int old_height = obj->height;
 
-    
+        int x = old_height-1;
         for(int i = 0; i < old_height;i++){
             for(int j = 0; j < old_width; j++){
-                new_drawing[old_width-j][old_height-i] = obj->drawing[i][j];
+                
+                new_drawing[j][x] = obj->drawing[i][j];
+                printf("%c",new_drawing[j][x]);
+                obj->drawing[i][j] = 0;
+            }
+            printf("  %d\n", x);
+            x--;
+        }
+
+        for(int i = 0; i < old_height;i++){
+            for(int j = 0; j < old_width; j++){
+                
+                obj->drawing[i][j] = new_drawing[i][j];
             }
         }
-    
-                    
-
-        obj->drawing = new_drawing;
-        obj->height = old_width;
-        obj->width = old_height;
-        rotations--;   
+        rotations--;
     }
+
     return 0;
 }
 
@@ -178,11 +217,16 @@ int main(int argc, char *argv[])
 
     attron(COLOR_PAIR(1));
     draw_object_ncurses(obj, 0, 0);
-    attroff(COLOR_PAIR(1));
-    refresh();
+    rotate(obj, 90);
+    draw_object_ncurses(obj, 15, 15);
+    rotate(obj, 90);
+    draw_object_ncurses(obj, 30, 30);
+    //refresh();
 
     getch();
     endwin();
     rotate(obj, 90);
+    rotate(obj, 90);
+
     return 0;
 }
