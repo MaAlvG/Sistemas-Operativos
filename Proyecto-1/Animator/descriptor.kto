@@ -1,0 +1,85 @@
+#Restricciones de tiempo de inicio y final
+#Establecer el tamaño del canvas
+#Descripción de Objetos
+#Límite de espacio de Objetos
+#Descripción de movimiento de Objetos
+
+#heigth X width
+full_canvas_size: 
+2000x2000
+
+start_object_description:
+
+#identificador/nombre
+object_name:  
+spacelift
+
+#tipo de scheduler
+object_type:
+sorteo 
+
+start_time:
+20
+
+end_time:
+30
+
+#x,y,angle
+initial_state:
+20,20,0
+
+#x,y,angle
+end_state:
+55,23,180
+
+rotation:
+180
+
+shape:
+  -  
+ /x\ 
+|xxx|
+ |x| 
+ |_| 
+  +  
+ +++ 
+  +  
+  +  
+
+end_object_description;
+
+start_object_description:
+
+#identificador/nombre
+object_name:  
+arrow
+
+#tipo de scheduler
+object_type:
+sorteo 
+
+start_time:
+20
+
+end_time:
+30
+
+#x,y,angle
+initial_state:
+30,30,0
+
+#x,y,angle
+end_state:
+55,23,180
+
+rotation:
+180
+
+shape:
+  x  
+ xxx 
+xxxxx
+ xxx 
+ xxx 
+  
+end_object_description;

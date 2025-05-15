@@ -22,15 +22,19 @@
 //     my_mutex_t **locks; // Para control concurrente de cada celda
 // } Canvas;
 
-typedef struct
-{
+typedef struct{
+    int id;
+    int socket;
+
+} Monitor;
+
+typedef struct{
     int width;
     int height;
     char drawing[MAX_OBJECT_SIZE][MAX_OBJECT_SIZE];
 } Objeto;
 
-typedef struct
-{
+typedef struct{
     int id;
     int x, y;                                       // Posición actual
     int width, height;                              // Tamaño
@@ -99,6 +103,7 @@ Object *init_object(int id, int x, int y, int dx, int dy, int sT, int eT)
     return obj;
 }
 
+/*objeto, x de inicio, x de final*/
 void draw_object_ncurses(Object *obj, int start_x, int start_y){
     for (int i = 0; i < obj->height; i++){
         for (int j = 0; j < obj->width; j++){
@@ -109,70 +114,36 @@ void draw_object_ncurses(Object *obj, int start_x, int start_y){
     }
 }
 
-int rotate_left(Object* obj){
 
-    char new_drawing[obj->width][obj->height];
-    int row = 0;
-    int old_width = obj->width;
-    int old_height = obj->height;
-
-    for(int i = 0; i < old_width;i++){
-        for(int j = 0; j < old_height; j++){
-            
-        }
-    }
-
-    while (fgets(line, sizeof(line), fp) && row < MAX_OBJECT_SIZE){
-        int len = strlen(line);
-
-        // Quitar salto de línea
-        if (line[len - 1] == '\n'){
-            line[len - 1] = '\0';
-            len--;
-        }
-
-        if (len > obj->width)
-            obj->width = len;
-            
-        for (int col = 0; col < len && col < MAX_OBJECT_SIZE; col++){
-            obj->drawing[row][col] = line[col];
-        }
-        row++;
-    }
-
-    obj->height = row;
-}
-
-int rotate_right(char drawing[][]){
-    return;
-}
-
-int rotate_top(char drawing[][]){
-    return;
-}
-
-
-int rotate_object(Object* obj,int new_angle){
+int rotate(Object* obj, int new_angle){
     if(obj->angle == new_angle)
         return 0;
+
+    int rotations = new_angle/90;
+
+    while(rotations){
+        char new_drawing[obj->width][obj->height];
+        int row = 0;
+        int old_width = obj->width;
+        int old_height = obj->height;
+
     
+        for(int i = 0; i < old_height;i++){
+            for(int j = 0; j < old_width; j++){
+                new_drawing[old_width-j][old_height-i] = obj->drawing[i][j];
+            }
+        }
+    
+                    
 
-    int old_angle = obj->angle ;
-    if(new_angle == 0 || new_angle==180){
-
-        return rotate_top(obj->drawing);
-
-    }else if(new_angle== 90){
-        return rotate_right(obj->drawing);
-
-    }else if(new_angle == 270){
-        return rotate_left(obj);
-
-    }else{
-        prtinf("angulo invalido");
-        return 1;
+        obj->drawing = new_drawing;
+        obj->height = old_width;
+        obj->width = old_height;
+        rotations--;   
     }
+    return 0;
 }
+
 
 // void move_object(Object* obj){
 //     if()
@@ -212,6 +183,6 @@ int main(int argc, char *argv[])
 
     getch();
     endwin();
-    rotate_object(obj, 90);
+    rotate(obj, 90);
     return 0;
 }
