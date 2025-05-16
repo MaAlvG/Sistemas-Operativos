@@ -10,10 +10,12 @@
 #include <sys/stat.h>
 #include <ncurses.h>
 
-#define MAX_CANVAS_WIDTH 20
-#define MAX_CANVAS_HEIGT 20
 
 #define MAX_OBJECT_SIZE 20
+int canvas_width =0;
+int canvas_heigth = 0;
+
+
 // typedef struct 
 // {
 //     int width;
@@ -32,7 +34,7 @@ typedef struct{
     int width;
     int height;
     char drawing[MAX_OBJECT_SIZE][MAX_OBJECT_SIZE];
-} Objeto;
+} Explosion_obj;
 
 typedef struct{
     int id;
@@ -120,7 +122,7 @@ int rotate(Object* obj, int new_angle){
         return 0;
 
     int rotations = new_angle/90;
-    printf("\n%d, %d, %d\n",obj->height,obj->width, rotations);
+    //printf("\n%d, %d, %d\n",obj->height,obj->width, rotations);
 
     // while(rotations){
     //     char new_drawing[obj->width][obj->height];
@@ -164,10 +166,10 @@ int rotate(Object* obj, int new_angle){
             for(int j = 0; j < old_width; j++){
                 
                 new_drawing[j][x] = obj->drawing[i][j];
-                printf("%c",new_drawing[j][x]);
+                //printf("%c",new_drawing[j][x]);
                 obj->drawing[i][j] = 0;
             }
-            printf("  %d\n", x);
+            //printf("  %d\n", x);
             x--;
         }
 
@@ -183,13 +185,59 @@ int rotate(Object* obj, int new_angle){
     return 0;
 }
 
+void explode(Object* obj){
+    return;
+}
 
-// void move_object(Object* obj){
-//     if()
-// }
+void clear_object(Object* obj){
+    int start_x = obj->x;
+    int start_y = obj->y;
+    char ch = ' ';
+    for (int i = 0; i < obj->height; i++){
+        for (int j = 0; j < obj->width; j++){
+                mvaddch(start_y + i, start_x + j, ch);
+        }
+    }
+}
 
-int main(int argc, char *argv[])
-{
+void move_object(Object* obj){
+    int move_flag  = 1;
+
+    while(move_flag){
+        refresh();
+        int step_x = 1;
+        int step_y = 1;
+        if(obj->destined_x < obj->x)
+            step_x = -1;
+        if(obj->destined_y < obj->y)
+            step_x = -1;
+
+        int new_x, new_y;
+        if(obj->destined_x != obj->x){
+            new_x = obj->x + step_x;
+        }
+
+        if(obj->destined_y != obj->y){
+            new_y = obj->y + step_y;
+        }
+        
+        clear_object(obj);
+        draw_object_ncurses(obj, new_x, new_y);
+        rotate(obj, 0);
+
+        obj->x = new_x;
+        obj->y = new_y;
+        move_flag = obj->destined_x != obj->x || obj->destined_y != obj->y;
+        usleep(300000);
+    }
+
+    // sleep(1);
+    // clear();
+    // explode(obj);
+
+}
+
+int main(int argc, char *argv[]){
     // initscr();              // Inicia ncurses
     // cbreak();               // Desactiva el buffer de línea
     // noecho();               // No muestra las teclas presionadas
@@ -203,7 +251,7 @@ int main(int argc, char *argv[])
     // endwin();
     // loadObject();             // Termina ncurses y restaura la terminal
 
-    Object *obj = init_object(1, 0, 0, 5, 5, 10, 10);
+    Object *obj = init_object(1, 0, 0,10, 10, 10, 10);
     // if (load_shape_from_file(obj, "ascii-object.txt") != 0)
     //     return 1;
     // while(obj->active)
@@ -212,21 +260,22 @@ int main(int argc, char *argv[])
     noecho();
     curs_set(FALSE);
 
+    
+    // draw_object_ncurses(obj, 0, 0);
+    // rotate(obj, 90);
+    // draw_object_ncurses(obj, 30, 30);
     start_color(); /* Start color 			*/
     init_pair(1, COLOR_RED, COLOR_BLACK);
 
     attron(COLOR_PAIR(1));
-    draw_object_ncurses(obj, 0, 0);
-    rotate(obj, 90);
-    draw_object_ncurses(obj, 15, 15);
-    rotate(obj, 90);
-    draw_object_ncurses(obj, 30, 30);
+    move_object(obj);
     //refresh();
 
     getch();
     endwin();
-    rotate(obj, 90);
-    rotate(obj, 90);
+    // int rows, cols;
+    // getmaxyx(stdscr, rows, cols);
+    // printf("Filas: %d, Columnas: %d\n", rows, cols);
 
     return 0;
 }
