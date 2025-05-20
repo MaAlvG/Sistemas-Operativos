@@ -1,15 +1,12 @@
-#Restricciones de tiempo de inicio y final
-#Establecer el tamaño del canvas
-#Descripción de Objetos
-#Límite de espacio de Objetos
-#Descripción de movimiento de Objetos
+full_canvas_size:
+2000
+1000
 
-full_canvas_size: 
-2000x2000
+num_objects:
+2
 
 start_object_description:
-
-object_name:  
+object_name:
 cross
 
 object_type:
@@ -21,27 +18,28 @@ start_time:
 end_time:
 30
 
-initial_state:
-20,20,0
+initial_pos:
+20
+20
 
-end_state:
-55,23,180
+end_pos:
+55
+23
 
 rotation:
-180
+90
 
 shape:
+5
   +  
  +++ 
   +  
   +  
   +  
-
 end_object_description;
 
 start_object_description:
-
-object_name:  
+object_name:
 arrow
 
 object_type:
@@ -53,20 +51,23 @@ start_time:
 end_time:
 30
 
-initial_state:
-30,30,0
+initial_pos:
+55
+23
 
-end_state:
-55,23,180
+end_pos:
+15
+20
 
 rotation:
 180
 
 shape:
-  x  
- xxx 
-xxxxx
- xxx 
- xxx 
-  
+6
+  *   
+  *   
+ ***  
+***** 
+ ***  
+ ***  
 end_object_description;
