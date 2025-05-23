@@ -116,32 +116,32 @@ Object *init_object(char* id, int x, int y, int dx, int dy, int sT, int eT, int 
 
 /*objeto, x de inicio, x de final*/
 void draw_object_ncurses(Object *obj, int start_x, int start_y, Canvas* canvas){
-    for (int i = 0; i < obj->height; i++){
-        for (int j = 0; j < obj->width; j++){
-            char y_value[5];
-            sprintf(y_value, "%d", start_y + i);
+    // for (int i = 0; i < obj->height; i++){
+    //     for (int j = 0; j < obj->width; j++){
+    //         char y_value[5];
+    //         sprintf(y_value, "%d", start_y + i);
 
-            char x_value[5];
-            sprintf(x_value, "%d", start_x + j);
-            char buffer [10];
+    //         char x_value[5];
+    //         sprintf(x_value, "%d", start_x + j);
+    //         char buffer [10];
 
-            strcpy(buffer, y_value);
-            strcat(buffer,",");
-            strcat(buffer, x_value);
+    //         strcpy(buffer, y_value);
+    //         strcat(buffer,",");
+    //         strcat(buffer, x_value);
             
-            int flag=0;
-            for (int x = 0; x < obj->height; x++){
-                for (int y = 0; y < obj->width; y++){
-                    if(strcmp(buffer, obj->mutex_mask[y][x])!=0){
-                        flag=1;
-                    }
-                }
-            }
+    //         int flag=0;
+    //         for (int x = 0; x < obj->height; x++){
+    //             for (int y = 0; y < obj->width; y++){
+    //                 if(strcmp(buffer, obj->mutex_mask[y][x])!=0){
+    //                     flag=1;
+    //                 }
+    //             }
+    //         }
 
-            if(!flag)
-                pthread_mutex_lock(&canvas->locks[start_y + i][start_x +j]);
-        }
-    }
+    //         if(!flag)
+    //             pthread_mutex_lock(&canvas->locks[start_y + i][start_x +j]);
+    //     }
+    // }
 
     for (int i = 0; i < obj->height; i++){
         for (int j = 0; j < obj->width; j++){
@@ -150,48 +150,57 @@ void draw_object_ncurses(Object *obj, int start_x, int start_y, Canvas* canvas){
                 //pthread_mutex_lock(&canvas->locks[start_y + i][start_x +j]);
                 mvaddch(start_y + i, start_x + j, ch);
 
-                char y_value[5];
-                sprintf(y_value, "%d", start_y + i);
-
-                char x_value[5];
-                sprintf(x_value, "%d", start_x + j);
-                char buffer [10];
-
-                strcpy(buffer, y_value);
-                strcat(buffer,",");
-                strcat(buffer, x_value);
-                strcpy(obj->mutex_mask[i][j],buffer);
             }
         }
     }
 }
 
-void draw_first_object(Object *obj, int start_x, int start_y, Canvas* canvas){
+void update_locks(int step_x,int step_y,Object *obj, int start_x, int start_y, Canvas* canvas){
     for (int i = 0; i < obj->height; i++){
         for (int j = 0; j < obj->width; j++){
-            pthread_mutex_lock(&canvas->locks[start_y + i][start_x +j]);
 
+            int flag_y = i+step_y < 0||i+step_y > obj->height;
+            int flag_x = j+step_x < 0||j+step_x > obj->width;
+            
+
+            if(flag_x&&!flag_y){
+                pthread_mutex_lock(&canvas->locks[start_y + i][start_x + j+step_x]);
+
+            }else if(!flag_x&&flag_y){
+                pthread_mutex_lock(&canvas->locks[start_y + i+step_y][start_x + j]);
+
+            }else if(flag_x&&flag_y){
+                pthread_mutex_lock(&canvas->locks[start_y + i+step_y][start_x + j + step_x]);
+
+            }
+            //mvaddch(start_y + i, start_x + j, ch);
+            
         }
     }
 
+    int new_start_x = start_x+step_x;
+    int new_start_y = start_y+step_y;
+
+    step_x= step_x*-1;
+    step_y= step_y*-1;
+
     for (int i = 0; i < obj->height; i++){
         for (int j = 0; j < obj->width; j++){
-            char ch = obj->drawing[i][j];
-            if (ch != ' '){
-                //pthread_mutex_lock(&canvas->locks[start_y + i][start_x +j]);
-                mvaddch(start_y + i, start_x + j, ch);
 
-                char y_value[5];
-                sprintf(y_value, "%d", start_y + i);
+            
+            int flag_y = i+step_y < 0||i+step_y > obj->height;
+            int flag_x = j+step_x < 0||j+step_x > obj->width;
+            
 
-                char x_value[5];
-                sprintf(x_value, "%d", start_x + j);
-                char buffer [10];
+            if(flag_x&&!flag_y){
+                pthread_mutex_unlock(&canvas->locks[new_start_y + i][new_start_x + j+step_x]);
 
-                strcpy(buffer, y_value);
-                strcat(buffer,",");
-                strcat(buffer, x_value);
-                strcpy(obj->mutex_mask[i][j],buffer);
+            }else if(!flag_x&&flag_y){
+                pthread_mutex_unlock(&canvas->locks[new_start_y + i+step_y][new_start_x + j]);
+
+            }else if(flag_x&&flag_y){
+                pthread_mutex_unlock(&canvas->locks[new_start_y + i+step_y][new_start_x + j + step_x]);
+
             }
         }
     }
@@ -280,31 +289,42 @@ void clear_object(Object* obj, Canvas* canvas){
         }
     }
 
-    for (int i = 0; i < obj->height; i++){
-        for (int j = 0; j < obj->width; j++){
+    // for (int i = 0; i < obj->height; i++){
+    //     for (int j = 0; j < obj->width; j++){
 
             
-            //mvaddch(start_y + i, start_x + j, ch);
-            pthread_mutex_unlock(&canvas->locks[start_y + i][start_x + j]);
-        }
-    }
+    //         //mvaddch(start_y + i, start_x + j, ch);
+    //         pthread_mutex_unlock(&canvas->locks[start_y + i][start_x + j]);
+    //     }
+    // }
 }
 
 void move_object(Object* obj, Canvas* canvas){
     int move_flag  = 1;
-    draw_first_object(obj,obj->x, obj->y, canvas);
+    //draw_first_object(obj,obj->x, obj->y, canvas);
 
     while(move_flag){
-        refresh();
-        draw_object_ncurses(obj,obj->x, obj->y, canvas);
         
-        int step_x = 1;
-        int step_y = 1;
+        
+        
+        int step_x = 0;
+        int step_y = 0;
 
-        if(obj->destined_x < obj->x)
+        if(obj->destined_x > obj->x){
+            step_x = 1;
+        }else if(obj->destined_x < obj->x){
             step_x = -1;
-        if(obj->destined_y < obj->y)
+        }
+
+        if(obj->destined_y > obj->y){
+            step_y = 1;
+        }else if(obj->destined_y < obj->y){
             step_y = -1;
+        }
+
+        update_locks(step_x,step_y,obj, obj->x, obj->y, canvas);
+        draw_object_ncurses(obj,obj->x, obj->y, canvas);
+        refresh();
 
         int new_x, new_y;
         if(obj->destined_x != obj->x){
@@ -584,15 +604,15 @@ int main(int argc, char *argv[]){
     //refresh();
     endwin();
 
-    for(int x=0;x<num_objects;x++){
-        Object *obj =obj_list[x];
-        for(int i=0;i<obj->height;i++){
-            for(int j=0;j<obj->width;j++){
-                printf("%s-", obj->mutex_mask[i][j]);
-            }
-            printf("\n");
-        }
-        printf(">x:%d\n", x);
-    }
+    // for(int x=0;x<num_objects;x++){
+    //     Object *obj =obj_list[x];
+    //     for(int i=0;i<obj->height;i++){
+    //         for(int j=0;j<obj->width;j++){
+    //             printf("%s-", obj->mutex_mask[i][j]);
+    //         }
+    //         printf("\n");
+    //     }
+    //     printf(">x:%d\n", x);
+    // }
     return 0;
 }
