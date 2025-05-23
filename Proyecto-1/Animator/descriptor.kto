@@ -27,15 +27,15 @@ end_pos:
 23
 
 rotation:
-90
+0
 
 shape:
 5
-  +  
- +++ 
-  +  
-  +  
-  +  
++++++
++++++
++++++
++++++
++++++
 end_object_description;
 
 start_object_description:
@@ -60,14 +60,13 @@ end_pos:
 20
 
 rotation:
-180
+0
 
 shape:
-6
-  *   
-  *   
- ***  
-***** 
- ***  
- ***  
+5
+*****
+*****
+*****
+*****
+*****
 end_object_description;
