@@ -6,7 +6,6 @@
 #include <asm-generic/socket.h>
 #include <netinet/in.h>
 #include <pthread.h>
-#include <semaphore.h>
 #include <sys/stat.h>
 #include <ncurses.h>
 
@@ -23,6 +22,7 @@ typedef struct
     pthread_mutex_t **locks; // Para control concurrente de cada celda
 } Canvas;
 
+pthread_mutex_t lock;
 
 //Object
 
@@ -43,8 +43,7 @@ typedef struct{
     char* id;
     int x, y;                                       // Posición actual
     int width, height;                              // Tamaño
-    char drawing[MAX_OBJECT_SIZE][MAX_OBJECT_SIZE];
-    char mutex_mask[MAX_OBJECT_SIZE][MAX_OBJECT_SIZE][10]; // Dibujo (matriz de ASCII)
+    char drawing[MAX_OBJECT_SIZE][MAX_OBJECT_SIZE];// Dibujo (matriz de ASCII)
     int rotations;                                      // Rotación:
     // SchedulerType scheduler;
     int start_time, end_time; // Tiempo de aparición y desaparición
@@ -106,61 +105,36 @@ Object *init_object(char* id, int x, int y, int dx, int dy, int sT, int eT, int 
     obj->destined_x = dx;
     obj->destined_y = dy;
     obj->active = 1;
-
-    // if (load_shape_from_file(obj, "ascii-object.txt") != 0){
-    //     return NULL;
-    // }
-
     return obj;
 }
 
 /*objeto, x de inicio, x de final*/
-void draw_object_ncurses(Object *obj, int start_x, int start_y, Canvas* canvas){
-    // for (int i = 0; i < obj->height; i++){
-    //     for (int j = 0; j < obj->width; j++){
-    //         char y_value[5];
-    //         sprintf(y_value, "%d", start_y + i);
-
-    //         char x_value[5];
-    //         sprintf(x_value, "%d", start_x + j);
-    //         char buffer [10];
-
-    //         strcpy(buffer, y_value);
-    //         strcat(buffer,",");
-    //         strcat(buffer, x_value);
-            
-    //         int flag=0;
-    //         for (int x = 0; x < obj->height; x++){
-    //             for (int y = 0; y < obj->width; y++){
-    //                 if(strcmp(buffer, obj->mutex_mask[y][x])!=0){
-    //                     flag=1;
-    //                 }
-    //             }
-    //         }
-
-    //         if(!flag)
-    //             pthread_mutex_lock(&canvas->locks[start_y + i][start_x +j]);
-    //     }
-    // }
+void draw_object_ncurses(Object *obj){
+    int start_x = obj->x;
+    int start_y = obj->y;
 
     for (int i = 0; i < obj->height; i++){
         for (int j = 0; j < obj->width; j++){
-            char ch = obj->drawing[i][j];
-            if (ch != ' '){
-                //pthread_mutex_lock(&canvas->locks[start_y + i][start_x +j]);
-                mvaddch(start_y + i, start_x + j, ch);
-
+            
+            if (obj->drawing[i][j] != ' '){
+                pthread_mutex_lock(&lock);
+                mvaddch(start_y + i, start_x + j, obj->drawing[i][j]);
+                refresh();
+                pthread_mutex_unlock(&lock);
             }
+            
         }
     }
 }
 
-void update_locks(int step_x,int step_y,Object *obj, int start_x, int start_y, Canvas* canvas){
+void update_locks(int step_x,int step_y,Object *obj, Canvas* canvas){
+    int start_x = obj->x;
+    int start_y = obj->y;
     for (int i = 0; i < obj->height; i++){
         for (int j = 0; j < obj->width; j++){
 
-            int flag_y = i+step_y < 0||i+step_y > obj->height;
-            int flag_x = j+step_x < 0||j+step_x > obj->width;
+            int flag_y = i+step_y < 0||i+step_y > obj->height-1;
+            int flag_x = j+step_x < 0||j+step_x > obj->width-1;
             
 
             if(flag_x&&!flag_y){
@@ -173,7 +147,6 @@ void update_locks(int step_x,int step_y,Object *obj, int start_x, int start_y, C
                 pthread_mutex_lock(&canvas->locks[start_y + i+step_y][start_x + j + step_x]);
 
             }
-            //mvaddch(start_y + i, start_x + j, ch);
             
         }
     }
@@ -188,8 +161,8 @@ void update_locks(int step_x,int step_y,Object *obj, int start_x, int start_y, C
         for (int j = 0; j < obj->width; j++){
 
             
-            int flag_y = i+step_y < 0||i+step_y > obj->height;
-            int flag_x = j+step_x < 0||j+step_x > obj->width;
+            int flag_y = i+step_y < 0||i+step_y > obj->height-1;
+            int flag_x = j+step_x < 0||j+step_x > obj->width-1;
             
 
             if(flag_x&&!flag_y){
@@ -202,6 +175,16 @@ void update_locks(int step_x,int step_y,Object *obj, int start_x, int start_y, C
                 pthread_mutex_unlock(&canvas->locks[new_start_y + i+step_y][new_start_x + j + step_x]);
 
             }
+        }
+    }
+}
+
+void release_locks(Object *obj, Canvas* canvas){
+    int start_x = obj->x;
+    int start_y = obj->y;
+    for (int i = 0; i < obj->height; i++){
+        for (int j = 0; j < obj->width; j++){
+            pthread_mutex_unlock(&canvas->locks[start_y + i][start_x + j]);
         }
     }
 }
@@ -249,12 +232,13 @@ int rotate(Object* obj, int new_angle){
         int old_height = obj->height;
 
         int x = old_height-1;
+
         for(int i = 0; i < old_height;i++){
             for(int j = 0; j < old_width; j++){
                 
                 new_drawing[j][x] = obj->drawing[i][j];
                 //printf("%c",new_drawing[j][x]);
-                obj->drawing[i][j] = 0;
+                obj->drawing[i][j] = ' ';
             }
             //printf("  %d\n", x);
             x--;
@@ -266,6 +250,7 @@ int rotate(Object* obj, int new_angle){
                 obj->drawing[i][j] = new_drawing[i][j];
             }
         }
+
         rotations--;
     }
 
@@ -276,36 +261,26 @@ void explode(Object* obj){
     return;
 }
 
-void clear_object(Object* obj, Canvas* canvas){
+void clear_object(Object* obj){
     int start_x = obj->x;
     int start_y = obj->y;
-    char ch = ' ';
     for (int i = 0; i < obj->height; i++){
         for (int j = 0; j < obj->width; j++){
 
-            
-            mvaddch(start_y + i, start_x + j, ch);
-            //pthread_mutex_unlock(&canvas->locks[start_y + i][start_x + j]);
+            pthread_mutex_lock(&lock);
+            mvaddch(start_y + i, start_x + j, ' ');
+            pthread_mutex_unlock(&lock);
         }
     }
 
-    // for (int i = 0; i < obj->height; i++){
-    //     for (int j = 0; j < obj->width; j++){
-
-            
-    //         //mvaddch(start_y + i, start_x + j, ch);
-    //         pthread_mutex_unlock(&canvas->locks[start_y + i][start_x + j]);
-    //     }
-    // }
 }
 
 void move_object(Object* obj, Canvas* canvas){
     int move_flag  = 1;
-    //draw_first_object(obj,obj->x, obj->y, canvas);
 
     while(move_flag){
         
-        
+        draw_object_ncurses(obj);
         
         int step_x = 0;
         int step_y = 0;
@@ -321,10 +296,11 @@ void move_object(Object* obj, Canvas* canvas){
         }else if(obj->destined_y < obj->y){
             step_y = -1;
         }
+        
+        
 
-        update_locks(step_x,step_y,obj, obj->x, obj->y, canvas);
-        draw_object_ncurses(obj,obj->x, obj->y, canvas);
-        refresh();
+        update_locks(step_x,step_y,obj, canvas);
+        
 
         int new_x, new_y;
         if(obj->destined_x != obj->x){
@@ -335,18 +311,25 @@ void move_object(Object* obj, Canvas* canvas){
             new_y = obj->y + step_y;
         }
         
+        //update(obj, obj->x, obj->y, new_x, new_y, canvas);
         
         rotate(obj, obj->rotations);
 
-        usleep(500000);
-        clear_object(obj,canvas);
+        usleep(300000);
+
         
+        //rotate(obj, obj->rotations);
+        clear_object(obj);
+        
+        //refresh();
+        //usleep(300000);
 
         obj->x = new_x;
         obj->y = new_y;
         move_flag = obj->destined_x != obj->x || obj->destined_y != obj->y;
         
     }
+    release_locks(obj, canvas);
     // sleep(1);
     // clear();
     // explode(obj);
@@ -363,16 +346,13 @@ int load_config(const char* filename, Canvas* canvas, Object  ***arr, int *size)
     char line[30];
     fgets(line, 30, fp);
     
-    if(strcmp(line,"full_canvas_size:")){
 
-        fgets(line, 10, fp);
-        canvas->height  = atoi(line);
+    fgets(line, 10, fp);
+    canvas->height  = atoi(line);
 
-        fgets(line, 10, fp);
-        canvas->width  = atoi(line);
-    }else{
-        return -1;
-    }
+    fgets(line, 10, fp);
+    canvas->width  = atoi(line);
+
 
     canvas->locks = malloc(canvas->height * sizeof(pthread_mutex_t*));
 
@@ -387,13 +367,9 @@ int load_config(const char* filename, Canvas* canvas, Object  ***arr, int *size)
     int num_objects;
     fgets(line, 2, fp);
     fgets(line, 14, fp);
-    if(strcmp(line,"num_objects:")){
-        fgets(line, 5, fp);
-        
-        num_objects = atoi(line);
-    }else{
-        return -1;
-    }
+    fgets(line, 5, fp);
+    
+    num_objects = atoi(line);
 
     for(int i =0; i< num_objects; i++){
         char obj_id[20];
@@ -407,14 +383,7 @@ int load_config(const char* filename, Canvas* canvas, Object  ***arr, int *size)
         fgets(line, 2, fp);
         fgets(line, 27, fp);
 
-        if(!strcmp(line,"start_object_description:")){
-            return -1;
-        }
-
         fgets(line, 14, fp);
-        if(!strcmp(line,"object_name:")){
-            return -1;
-        }
         fgets(line, 30, fp);
         int len = strlen(line);
         if (line[len - 1] == '\n'){
@@ -425,9 +394,6 @@ int load_config(const char* filename, Canvas* canvas, Object  ***arr, int *size)
 
         fgets(line, 2, fp);
         fgets(line, 14, fp);
-        if(!strcmp(line,"object_type:")){
-            return -1;
-        }    
         fgets(line, 30, fp);
         len = strlen(line);
         if (line[len - 1] == '\n'){
@@ -438,67 +404,42 @@ int load_config(const char* filename, Canvas* canvas, Object  ***arr, int *size)
 
         fgets(line, 2, fp);
         fgets(line, 14, fp);
-        if(strcmp(line,"start_time:")){
-            fgets(line, 5, fp);
-            
-            start_time = atoi(line);
-        }else{
-            return -1;
-        }
+        fgets(line, 5, fp);
+        
+        start_time = atoi(line);
 
         fgets(line, 2, fp);
         fgets(line, 14, fp);
-        if(strcmp(line,"end_time:")){
-            fgets(line, 5, fp);
-            
-            end_time = atoi(line);
-        }else{
-            return -1;
-        }
+        fgets(line, 5, fp);
+        
+        end_time = atoi(line);
 
         fgets(line, 2, fp);
         fgets(line, 14, fp);
-        if(strcmp(line,"initial_pos:")){
 
-            fgets(line, 10, fp);
-            start_x  = atoi(line);
+        fgets(line, 10, fp);
+        start_x  = atoi(line);
 
-            fgets(line, 10, fp);
-            start_y  = atoi(line);
-        }else{
-            return -1;
-        }
+        fgets(line, 10, fp);
+        start_y  = atoi(line);
 
         fgets(line, 2, fp);
         fgets(line, 14, fp);
-        if(strcmp(line,"end_pos:")){
-            fgets(line, 10, fp);
-            end_x  = atoi(line);
+        fgets(line, 10, fp);
+        end_x  = atoi(line);
 
-            fgets(line, 10, fp);
-            end_y  = atoi(line);
-            
-        }else{
-            return -1;
-        }
-
+        fgets(line, 10, fp);
+        end_y  = atoi(line);
         fgets(line, 2, fp);
         fgets(line, 14, fp);
-        if(strcmp(line,"rotatsion:")){
-            fgets(line, 5, fp);
-            
-            rotation = atoi(line);
-        }else{
-            return -1;
-        }
+        fgets(line, 5, fp);
+        
+        rotation = atoi(line);
 
         Object* obj = init_object(obj_id, start_x, start_y, end_x, end_y, start_time, end_time, rotation);
 
         fgets(line, 2, fp);
         fgets(line, 14, fp);
-        if(!strcmp(line,"shape:")){
-            return -1;
-        } 
 
         fgets(line, 5, fp);
         int row=0;
@@ -536,6 +477,7 @@ int load_config(const char* filename, Canvas* canvas, Object  ***arr, int *size)
 
         //printf("%d|%d\n", end_x, end_y);
     }
+    fclose(fp);
     return 0;
 }
 
@@ -554,13 +496,18 @@ int main(int argc, char *argv[]){
     extern char *optarg;
     char *config_file = NULL;
 
-    // if((arg_opt=(argc, argv, "c:"))!=-1){
-    //     config_file= optarg;
-
-    // }else{
-    //     printf("\nUsando archivo de configuracion por defecto\n");
-    //     config_file= "descriptor.kto";
-    // }
+    while((arg_opt = getopt(argc,argv, "c:"))!=-1){
+        switch (arg_opt)
+        {
+        case 'c':
+            config_file =optarg;
+            break;
+        
+        default:
+            printf("\nArchivo de configuracion no especificado\n");
+            exit(EXIT_FAILURE);
+        }
+    }
 
     Canvas* canvas = calloc(1, sizeof(Canvas));
 
@@ -569,7 +516,7 @@ int main(int argc, char *argv[]){
 
     Object** obj_list = NULL;
     int num_objects=0;
-    load_config("descriptor.kto", canvas, &obj_list, &num_objects);
+    load_config(config_file, canvas, &obj_list, &num_objects);
 
     pthread_t threads[num_objects];
     thread_args args[num_objects];
@@ -582,6 +529,8 @@ int main(int argc, char *argv[]){
     initscr();
     noecho();
     curs_set(FALSE);  
+
+    pthread_mutex_init(&lock, NULL);
 
     for(int i=0;i<num_objects;i++){
         args[i].canvas = canvas;
@@ -601,18 +550,16 @@ int main(int argc, char *argv[]){
         pthread_join(threads[i], NULL);
     }
 
+    sleep(1);
     //refresh();
     endwin();
 
-    // for(int x=0;x<num_objects;x++){
-    //     Object *obj =obj_list[x];
-    //     for(int i=0;i<obj->height;i++){
-    //         for(int j=0;j<obj->width;j++){
-    //             printf("%s-", obj->mutex_mask[i][j]);
-    //         }
-    //         printf("\n");
-    //     }
-    //     printf(">x:%d\n", x);
-    // }
+    for(int i =0;i<canvas->height; i++){
+        for(int j =0;j<canvas->width; j++){
+            pthread_mutex_destroy(&canvas->locks[i][j]);
+        }
+    }
+
+    pthread_mutex_destroy(&lock);
     return 0;
 }

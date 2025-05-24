@@ -3,7 +3,7 @@ full_canvas_size:
 1000
 
 num_objects:
-2
+3
 
 start_object_description:
 object_name:
@@ -27,15 +27,16 @@ end_pos:
 23
 
 rotation:
-0
+90
 
 shape:
-5
-+++++
-+++++
-+++++
-+++++
-+++++
+6
+  --  
+   -  
+===- +
+= /+++
+  /   
+  //  
 end_object_description;
 
 start_object_description:
@@ -52,21 +53,55 @@ end_time:
 30
 
 initial_pos:
-55
-23
+30
+40
 
 end_pos:
-15
-20
+31
+0
 
 rotation:
-0
+270
 
 shape:
 5
+  *  
+ *** 
 *****
-*****
-*****
-*****
-*****
+ *** 
+ *** 
+end_object_description;
+
+
+start_object_description:
+object_name:
+arrow
+
+object_type:
+sorteo 
+
+start_time:
+20
+
+end_time:
+30
+
+initial_pos:
+3
+41
+
+end_pos:
+63
+20
+
+rotation:
+90
+
+shape:
+5
+  |  
+ /|\ 
+--+--
+ ||| 
+ ||| 
 end_object_description;
