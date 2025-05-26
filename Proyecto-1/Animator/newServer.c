@@ -13,14 +13,20 @@
 #define PORT 8080
 #define MAX_OBJECT_SIZE 30
 #define MAX_MONITORS 4
+#define MAX_MONITOR_HEIGHT 31;
+#define MAX_MONITOR_WIDTH 128;
 
+pthread_mutex_t conection_mutex;
+pthread_mutex_t lock;
 int counter=0;
 int saved_monitors=0;
+
 typedef struct{
     int id;
     int socket;
     int height;
     int width;
+    pthread_mutex_t monitor_lock;
 } Monitor;
 
 typedef struct {
@@ -32,8 +38,6 @@ typedef struct {
     Monitor *monitors[MAX_MONITORS][MAX_MONITORS];
     int amount_monitors;
 } Canvas;
-
-pthread_mutex_t lock;
 
 typedef struct{
     char* id;
@@ -52,8 +56,12 @@ typedef struct{
     Object* objeto;
     //Monitor** monitor;
     Canvas* canvas;
-} thread_args;
+} animation_thread_args;
 
+typedef struct{
+    int *socket;
+    Canvas* canvas;
+} monitors_thread_args;
 /*identificador, x de inicio, y de inicio, x final, y final, tiempo de inicio, tiempo de final,*/
 Object *init_object(char* id, int x, int y, int dx, int dy, int sT, int eT, int rot){
     Object *obj = calloc(1, sizeof(Object));
@@ -68,6 +76,28 @@ Object *init_object(char* id, int x, int y, int dx, int dy, int sT, int eT, int 
     obj->destined_y = dy;
     obj->active = 1;
     return obj;
+}
+
+Monitor* new_monitor(int id,int socket, int height, int width){
+    Monitor* monitor = calloc(1,sizeof(Monitor));
+
+    monitor->id = id;
+    monitor->socket= socket;
+    int max_height = MAX_MONITOR_HEIGHT;
+    if(max_height< height){
+        monitor->height=MAX_MONITOR_HEIGHT;
+    }else{
+        monitor->height=height;
+    }
+
+    int max_width = MAX_MONITOR_WIDTH;
+    if(max_width< width){
+        monitor->width =MAX_MONITOR_WIDTH;
+    }else{
+        monitor->width=width;
+    }
+
+    return monitor;
 }
 
 int load_config(const char* filename, Canvas* canvas, Object  ***arr, int *size){
@@ -118,13 +148,11 @@ int load_config(const char* filename, Canvas* canvas, Object  ***arr, int *size)
     canvas->monitors_width = width_monitors;
     printf("\n>%s",line);
 
-    for(int i=0;i<heigth_monitors;i++){
-        for(int j=0;j<width_monitors;j++){
-            Monitor *monitor = calloc(1, sizeof(Monitor));
-            monitor->id = -1;
-            canvas->monitors[heigth_monitors][width_monitors] = monitor;
-        }
-    }
+    // for(int i=0;i<heigth_monitors;i++){
+    //     for(int j=0;j<width_monitors;j++){
+    //         canvas->monitors[heigth_monitors][width_monitors] = NULL;
+    //     }
+    // }
 
     //Cantidad de objetos para la animacion
     int num_objects;
@@ -245,21 +273,79 @@ int load_config(const char* filename, Canvas* canvas, Object  ***arr, int *size)
     return 0;
 }
 
-
-void* handle_client(void* arg) {
+void add_monitor(Monitor *monitor,Canvas *canvas){
+    int y_monitors= canvas->monitors_height;
+    int x_monitors = canvas->monitors_width;
+    
+    for(int i =0; i<y_monitors;i++){
+        for(int j=0; j<x_monitors;j++){
+            if(canvas->monitors[i][j]== NULL){
+                canvas->monitors[i][j]= monitor;
+                i= y_monitors+1;
+                j=x_monitors+1;
+            }
+        }   
+    }
+}
+void* handle_monitors(void* arg) {
     counter++;
-    int client_socket = *(int*)arg;
-    free(arg);  // ya no necesitamos el puntero original
+    monitors_thread_args* args =(monitors_thread_args* )arg;
+    int client_socket = *args->socket;
+    Canvas *canvas = args->canvas;
 
-    char buffer[1024] = {0};
-    char* hello = "Hello from server";
+    printf("#%d#¬¬", client_socket);
 
-    read(client_socket, buffer, 1024);
-    printf("Mensaje recibido: %s\n", buffer);
-    send(client_socket, hello, strlen(hello), 0);
+    char input_buffer[1024] = {0};
+
+
+    int read_input = read(client_socket, input_buffer, 1024);
+    printf("\n¬¬%d\n", read_input);
+    int monitor_height=0;
+    int monitor_width=0;
+    if(read_input==-1){
+        printf("conexion invalida");
+        return NULL;
+    }
+    char* x_ptr = strchr(input_buffer, 'x');
+    char* end_ptr = strchr(input_buffer, ';');
+
+    if(x_ptr&&end_ptr&& x_ptr<end_ptr){
+        *x_ptr ='\0';
+        *end_ptr ='\0';
+        monitor_height = atoi(input_buffer);
+        monitor_width = atoi(x_ptr+1);
+
+        
+        printf("|%d, %d|", monitor_height, monitor_width);
+    }else{
+        printf("datos invalidos");
+        return NULL;
+    }
+    Monitor *monitor = new_monitor(counter, client_socket, monitor_height, monitor_width);
+    add_monitor(monitor, canvas);
+
+    printf("[Mensaje recibido: %s]\n", input_buffer);
+
+    char output_buffer[20];
+    char n[10];
+    sprintf(n,"%d", monitor->height);
+    strcat(output_buffer,n);
+    strcat(output_buffer,"x");
+    sprintf(n,"%d",monitor->width);
+    strcat(output_buffer,n);
+    strcat(output_buffer,";");
+
+
+    //sprintf(output_buffer, "%d", counter);
+    send(client_socket, output_buffer, strlen(output_buffer), 0);
     printf("Respuesta enviada\n");
-    printf("%d", client_socket);
-    close(client_socket);
+    printf("{%d}", client_socket);
+    
+    pthread_mutex_lock(&conection_mutex);
+    
+    pthread_mutex_unlock(&conection_mutex);
+
+    //close(client_socket);
     saved_monitors++;
     pthread_exit(NULL);
     
@@ -324,10 +410,14 @@ int main(int argc, char *argv[]) {
     
     printf("Servidor escuchando en el puerto %d...\n", PORT);
 
-    int max_monitors= canvas->monitors_height*canvas->monitors_width;
+    int max_monitors = canvas->monitors_height*canvas->monitors_width;
     
+    monitors_thread_args monitors_args[max_monitors];
+
+    pthread_mutex_init(&conection_mutex, NULL);
     while (saved_monitors < max_monitors+1 && saved_monitors < canvas->amount_monitors) {
         printf("\n<<<a:%d b:%d\n", max_monitors, saved_monitors);
+
         int* new_socket = malloc(sizeof(int));
         *new_socket = accept(server_fd, (struct sockaddr*)&address, &addrlen);
         if (*new_socket < 0) {
@@ -336,16 +426,28 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
+        printf("\nacepto\n");
+
+        monitors_args->canvas = canvas;
+        monitors_args->socket = new_socket;
         pthread_t tid;
-        pthread_create(&tid, NULL, handle_client, new_socket);
+        pthread_create(&tid, NULL, handle_monitors, monitors_args);
         pthread_detach(tid); // libera recursos automáticamente al terminar
         
-        printf("\na:%d b:%d>>>\n", max_monitors, saved_monitors);
+        printf("\na:%d b:%d c:%d>>>\n", max_monitors, saved_monitors, counter);
     }
     
     printf("\n<<<a:%d b:%d c:%d>>>\n", max_monitors, saved_monitors, counter);
-    
+    pthread_mutex_destroy(&conection_mutex);
     close(server_fd);
     
+
+    for(int i =0; i<canvas->monitors_height;i++){
+        for(int j=0; j<canvas->monitors_width;j++){
+            if(canvas->monitors[i][j] != NULL){
+                printf("%d, %d:", canvas->monitors[i][j]->id, canvas->monitors[i][j]->socket);
+            }            
+        }
+    }
     return 0;
 }
