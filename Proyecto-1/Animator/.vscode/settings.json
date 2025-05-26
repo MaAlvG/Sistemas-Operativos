@@ -60,6 +60,8 @@
     "socket.h": "c",
     "ncurses.h": "c",
     "stat.h": "c",
-    "stdlib.h": "c"
+    "stdlib.h": "c",
+    "stdio.h": "c",
+    "inet.h": "c"
   }
 }

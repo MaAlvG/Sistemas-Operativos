@@ -15,8 +15,7 @@
 int canvas_width = 0;
 int canvas_heigth = 0;
 
-typedef struct 
-{
+typedef struct {
     int width;
     int height;
     pthread_mutex_t **locks; // Para control concurrente de cada celda
