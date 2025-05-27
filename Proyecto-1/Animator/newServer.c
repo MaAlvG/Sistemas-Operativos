@@ -334,14 +334,10 @@ void draw_object_ncurses(Object *obj, Canvas *canvas){
     // strcat(send_draw, ";");
     Monitor *monitor = canvas->monitors[monitor_y][monitor_x];
     if(monitor != NULL){
-        printf("[\n%s\n", send_draw);
-    
-        printf("\n%d\n", monitor->id);
-        printf("\n%d\n]", monitor->socket);
         pthread_mutex_lock(&monitor->monitor_lock);
         int sev_val= send(monitor->socket, send_draw, sizeof(send_draw),0);
         pthread_mutex_unlock(&monitor->monitor_lock);
-        printf("Respuesta enviada %d\n", sev_val);
+        printf("Respuesta enviada %s\n", send_draw);
     }else{
         printf("nulo");
         
@@ -351,7 +347,7 @@ void draw_object_ncurses(Object *obj, Canvas *canvas){
     
 }
 
-void clear_object(Object* obj){
+void clear_object(Object* obj, Canvas* canvas){
     int start_x = obj->x;
     int start_y = obj->y;
 
@@ -389,6 +385,11 @@ void clear_object(Object* obj){
     // strcat(send_clear,",");
     // sprintf(n, "%d",monitor_start_y);
     // strcat(send_clear,n);
+
+    Monitor *monitor = canvas->monitors[monitor_y][monitor_x];
+    pthread_mutex_lock(&monitor->monitor_lock);
+    int sev_val= send(monitor->socket, send_clear, sizeof(send_clear),0);
+    pthread_mutex_unlock(&monitor->monitor_lock);
     printf("\n%s\n", send_clear);
 
 }
@@ -535,7 +536,7 @@ void move_object(Object* obj, Canvas* canvas){
 
         
         //rotate(obj, obj->rotations);
-        clear_object(obj);
+        clear_object(obj, canvas);
         
         //refresh();
         //usleep(300000);
@@ -692,7 +693,7 @@ int main(int argc, char *argv[]) {
     monitors_thread_args monitors_args[max_monitors];
 
     pthread_mutex_init(&conection_mutex, NULL);
-    while (saved_monitors < max_monitors+1 && saved_monitors < canvas->amount_monitors) {
+    while (saved_monitors < max_monitors && saved_monitors < canvas->amount_monitors) {
         int* new_socket = malloc(sizeof(int));
         *new_socket = accept(server_fd, (struct sockaddr*)&address, &addrlen);
         if (*new_socket < 0) {
