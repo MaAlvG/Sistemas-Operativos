@@ -29,17 +29,17 @@ void draw_object_ncurses(int start_x, int start_y, int height, int width, char d
             iterator++;
         }
     }
-    //sleep(1);
+    usleep(300000);
 }
 
 
-void clear_object(int start_x, int start_y, int height, int width){
+void clear_object(int start_x, int start_y, int height, int width, WINDOW *win){
     
     for (int i = 0; i < height; i++){
         for (int j = 0; j < width; j++){
 
             pthread_mutex_lock(&lock);
-            mvaddch(start_y + i, start_x + j, ' ');
+            mvwaddch(win, start_y + i, start_x + j, ' ');
             pthread_mutex_unlock(&lock);
         }
     }
@@ -120,7 +120,15 @@ void init_screen(int heigth, int width, int client_fd){
 
             draw_object_ncurses(x_pos, y_pos, draw_size, draw_size,draw, mywin);
         }else if(strcmp(instruction, "CLEAR")==0){
+            char* colon_ptr = strchr(x_ptr+1, ',');
+            char* div_ptr = strchr(x_ptr+1, '|');
+            *colon_ptr = '\0';
+            *div_ptr = '\0';
+            int y_pos = atoi(x_ptr+1);
+            int x_pos = atoi(colon_ptr+1);
+            int size = atoi(div_ptr+1);
             
+            clear_object(x_pos, y_pos, size, size, mywin);
         }else if(strcmp(instruction, "EXPLODE")==0){
             
         }else if(strcmp(instruction, "START")==0){

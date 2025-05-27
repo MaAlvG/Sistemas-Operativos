@@ -381,7 +381,7 @@ void clear_object(Object* obj){
     //     }
     // }
     char send_clear[100]={0};
-    sprintf(send_clear, "CLEAR:%d,%d;",monitor_start_x,monitor_start_y);
+    sprintf(send_clear, "CLEAR:%d,%d|%d;",monitor_start_x,monitor_start_y, obj->height);
     // char n[20]={0};
     // strcat(send_clear, "CLEAR:");
     // sprintf(n, "%d",monitor_start_x);
