@@ -96,6 +96,7 @@ Monitor* new_monitor(int id,int socket, int height, int width){
     }else{
         monitor->width=width;
     }
+    pthread_mutex_init(&monitor->monitor_lock, NULL);
 
     return monitor;
 }
@@ -337,8 +338,10 @@ void draw_object_ncurses(Object *obj, Canvas *canvas){
     
         printf("\n%d\n", monitor->id);
         printf("\n%d\n]", monitor->socket);
+        pthread_mutex_lock(&monitor->monitor_lock);
         int sev_val= send(monitor->socket, send_draw, sizeof(send_draw),0);
-        printf("Respuesta enviada%d\n", sev_val);
+        pthread_mutex_unlock(&monitor->monitor_lock);
+        printf("Respuesta enviada %d\n", sev_val);
     }else{
         printf("nulo");
         
@@ -528,6 +531,7 @@ void move_object(Object* obj, Canvas* canvas){
         rotate(obj, obj->rotations);
 
         usleep(300000);
+        //sleep(1);
 
         
         //rotate(obj, obj->rotations);
@@ -595,7 +599,7 @@ void* handle_monitors(void* arg) {
 
     //sprintf(output_buffer, "%d", counter);
     int sev_val= send(client_socket, output_buffer, strlen(output_buffer), 0);
-    printf("Respuesta enviada%d\n", sev_val);
+    printf("Respuesta enviada %d\n", counter);
     
     // pthread_mutex_lock(&conection_mutex);
     
@@ -615,6 +619,19 @@ void* handle_animation(void* arg){
     //printf("animando \n");
 
     return NULL;
+}
+
+void end_animation(Canvas * canvas){
+
+    for(int i =0; i<canvas->monitors_height;i++){
+        for(int j=0; j<canvas->monitors_width;j++){
+            if(canvas->monitors[i][j] != NULL){
+                printf("\n%d, %d:", canvas->monitors[i][j]->id, canvas->monitors[i][j]->socket);
+                send(canvas->monitors[i][j]->socket, "END:;", 6,0);
+            }            
+        }
+    }
+    
 }
 
 int main(int argc, char *argv[]) {
@@ -695,16 +712,13 @@ int main(int argc, char *argv[]) {
     close(server_fd);
     
 
-    // for(int i =0; i<canvas->monitors_height;i++){
-    //     for(int j=0; j<canvas->monitors_width;j++){
-    //         if(canvas->monitors[i][j] != NULL){
-    //             printf("%d, %d:", canvas->monitors[i][j]->id, canvas->monitors[i][j]->socket);
-    //         }            
-    //     }
-    // }
-
+    
     sleep(2);
     printf("\nhere\n");
     move_object(obj_list[0], canvas);
+
+    
+    
+    end_animation(canvas);
     return 0;
 }
