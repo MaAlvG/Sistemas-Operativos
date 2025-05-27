@@ -39,20 +39,16 @@ void init_screen(int heigth, int width){
         mvwaddch(mywin, 0, i, s[i]);
     }
     wrefresh(mywin);
-    //sleep(2);
-    
+    sleep(2);
+   
+    delwin(mywin);
+    endwin();
+
     int flag=1;
     int status, valread, client_fd;
     char input_buffer[1024] = {0};
 
-    
-    
-
-    
-    delwin(mywin);
-    endwin();
-
-    //while(flag){
+    while(flag){
         valread = read(client_fd, input_buffer,
                    1024 - 1); 
     
@@ -71,14 +67,15 @@ void init_screen(int heigth, int width){
 
             
             printf("|%d, %d|", monitor_height, monitor_width);
+            flag =0;
         }else{
             printf("datos invalidos");
 
         }
 
-        flag =0;
+        
 
-    //}
+    }
     printf("\n %s",s);
 }
 

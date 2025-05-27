@@ -141,7 +141,7 @@ int load_config(const char* filename, Canvas* canvas, Object  ***arr, int *size)
     canvas->monitors_height = heigth_monitors;
     fgets(line, 14, fp);
     width_monitors = atoi(line);
-
+    canvas->monitors_width = width_monitors;
 
     //Cantidad de objetos para la animacion
     int num_objects;
@@ -265,14 +265,16 @@ void add_monitor(Monitor *monitor,Canvas *canvas){
     int y_monitors= canvas->monitors_height;
     int x_monitors = canvas->monitors_width;
     
+    printf("\n{%d %d}\n",y_monitors, x_monitors);
     for(int i =0; i<y_monitors;i++){
         for(int j=0; j<x_monitors;j++){
             if(canvas->monitors[i][j]== NULL){
                 canvas->monitors[i][j]= monitor;
                 i= y_monitors+1;
                 j=x_monitors+1;
+                //printf("\n{%d %d}\n",monitor->height, monitor->width);
             }else{
-                printf("no era null");
+                //printf("no era null");
             }
         }   
     }
@@ -299,11 +301,11 @@ void draw_object_ncurses(Object *obj, Canvas *canvas){
         monitor_start_y= start_y-MAX_MONITOR_WIDTH; 
     }
     
-    printf("\n%d %d\n", monitor_x, monitor_y);
+    //printf("\n%d %d\n", monitor_x, monitor_y);
     monitor_x= start_x/monitor_x;
     monitor_y= start_y/monitor_y;
     
-    printf("\n%d %d\n", monitor_x, monitor_y);
+    //printf("\n%d %d\n", monitor_x, monitor_y);
     int obj_len = obj->height* obj->width;
     char obj_figure[obj_len];
     int iterator=0;
@@ -331,10 +333,10 @@ void draw_object_ncurses(Object *obj, Canvas *canvas){
     // strcat(send_draw, ";");
     Monitor *monitor = canvas->monitors[monitor_y][monitor_x];
     if(monitor != NULL){
-        printf("\n%s\n", send_draw);
+        printf("[\n%s\n", send_draw);
     
         printf("\n%d\n", monitor->id);
-        printf("\n%d\n", monitor->socket);
+        printf("\n%d\n]", monitor->socket);
         int sev_val= send(monitor->socket, send_draw, sizeof(send_draw),0);
         printf("Respuesta enviada%d\n", sev_val);
     }else{
@@ -577,6 +579,7 @@ void* handle_monitors(void* arg) {
         return NULL;
     }
     Monitor *monitor = new_monitor(counter, client_socket, monitor_height, monitor_width);
+    
     add_monitor(monitor, canvas);
 
 
