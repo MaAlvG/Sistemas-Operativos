@@ -110,15 +110,12 @@ int load_config(const char* filename, Canvas* canvas, Object  ***arr, int *size)
     //Define propiedades del canvas
     char line[30];
     fgets(line, 30, fp);
-    printf("\n>%s",line);
     //ancho
     fgets(line, 10, fp);
     canvas->height  = atoi(line);
-    printf("\n>%s",line);
     //alto
     fgets(line, 10, fp);
     canvas->width  = atoi(line);
-    printf("\n>%s",line);
 
     canvas->locks = malloc(canvas->height * sizeof(pthread_mutex_t*));
 
@@ -142,17 +139,9 @@ int load_config(const char* filename, Canvas* canvas, Object  ***arr, int *size)
     fgets(line, 14, fp);
     heigth_monitors = atoi(line);
     canvas->monitors_height = heigth_monitors;
-    printf("\n>%s",line);
     fgets(line, 14, fp);
     width_monitors = atoi(line);
-    canvas->monitors_width = width_monitors;
-    printf("\n>%s",line);
 
-    // for(int i=0;i<heigth_monitors;i++){
-    //     for(int j=0;j<width_monitors;j++){
-    //         canvas->monitors[heigth_monitors][width_monitors] = NULL;
-    //     }
-    // }
 
     //Cantidad de objetos para la animacion
     int num_objects;
@@ -161,7 +150,6 @@ int load_config(const char* filename, Canvas* canvas, Object  ***arr, int *size)
     fgets(line, 5, fp);
     
     num_objects = atoi(line);
-    printf("\n>%s",line);
     //ciclo para obtener la informacion de cada objeto
     for(int i =0; i< num_objects; i++){
         char obj_id[20];
@@ -283,23 +271,291 @@ void add_monitor(Monitor *monitor,Canvas *canvas){
                 canvas->monitors[i][j]= monitor;
                 i= y_monitors+1;
                 j=x_monitors+1;
+            }else{
+                printf("no era null");
             }
         }   
     }
+
+    //printf("|%d %d|", canvas->monitors[0][0]->id,canvas->monitors[0][0]->socket);
 }
+
+void draw_object_ncurses(Object *obj, Canvas *canvas){
+
+    int start_x = obj->x;
+    int start_y = obj->y;
+
+    int monitor_x = MAX_MONITOR_HEIGHT;
+    int monitor_y = MAX_MONITOR_WIDTH;
+    
+    int monitor_start_x= start_x;
+    int monitor_start_y= start_y;
+
+    if(start_x> monitor_x){
+        monitor_start_x= start_x-MAX_MONITOR_WIDTH; 
+    }
+
+    if(start_y> monitor_y){
+        monitor_start_y= start_y-MAX_MONITOR_WIDTH; 
+    }
+    
+    printf("\n%d %d\n", monitor_x, monitor_y);
+    monitor_x= start_x/monitor_x;
+    monitor_y= start_y/monitor_y;
+    
+    printf("\n%d %d\n", monitor_x, monitor_y);
+    int obj_len = obj->height* obj->width;
+    char obj_figure[obj_len];
+    int iterator=0;
+    for(int i =0; i< obj->height;i++){
+        for(int j =0; j< obj->width;j++){
+        obj_figure[iterator]= obj->drawing[i][j];
+        iterator++;
+        }
+    }
+    obj_figure[iterator]= '\0';
+
+    char send_draw[1024] ={0};
+
+    sprintf(send_draw, "DRAW:%d,%d<%s>%d;",monitor_start_x,monitor_start_y,obj_figure, obj->height);
+    // char n[20]={0};
+
+    // strcat(send_draw, "DRAW:");
+    // sprintf(n, "%d",monitor_start_x);
+    // strcat(send_draw,n);
+    // strcat(send_draw,",");
+    // sprintf(n, "%d",monitor_start_y);
+    // strcat(send_draw,n);
+    // strcat(send_draw,">");
+    // strcat(send_draw, obj_figure);
+    // strcat(send_draw, ";");
+    Monitor *monitor = canvas->monitors[monitor_y][monitor_x];
+    if(monitor != NULL){
+        printf("\n%s\n", send_draw);
+    
+        printf("\n%d\n", monitor->id);
+        printf("\n%d\n", monitor->socket);
+        int sev_val= send(monitor->socket, send_draw, sizeof(send_draw),0);
+        printf("Respuesta enviada%d\n", sev_val);
+    }else{
+        printf("nulo");
+        
+    }
+
+    
+    
+}
+
+void clear_object(Object* obj){
+    int start_x = obj->x;
+    int start_y = obj->y;
+
+    int monitor_x = MAX_MONITOR_HEIGHT;
+    int monitor_y = MAX_MONITOR_WIDTH;
+    
+    int monitor_start_x= start_x;
+    int monitor_start_y= start_y;
+
+    if(start_x> monitor_x){
+        monitor_start_x= start_x-MAX_MONITOR_WIDTH; 
+    }
+
+    if(start_y> monitor_y){
+        monitor_start_y= start_y-MAX_MONITOR_WIDTH; 
+    }
+    
+    monitor_x= start_x/monitor_x;
+    monitor_y= start_y/monitor_y;
+
+    // for (int i = 0; i < obj->height; i++){
+    //     for (int j = 0; j < obj->width; j++){
+
+    //         pthread_mutex_lock(&lock);
+    //         mvaddch(start_y + i, start_x + j, ' ');
+    //         pthread_mutex_unlock(&lock);
+    //     }
+    // }
+    char send_clear[100]={0};
+    sprintf(send_clear, "CLEAR:%d,%d;",monitor_start_x,monitor_start_y);
+    // char n[20]={0};
+    // strcat(send_clear, "CLEAR:");
+    // sprintf(n, "%d",monitor_start_x);
+    // strcat(send_clear,n);
+    // strcat(send_clear,",");
+    // sprintf(n, "%d",monitor_start_y);
+    // strcat(send_clear,n);
+    printf("\n%s\n", send_clear);
+
+}
+
+void update_locks(int step_x,int step_y,Object *obj, Canvas* canvas){
+    int start_x = obj->x;
+    int start_y = obj->y;
+    for (int i = 0; i < obj->height; i++){
+        for (int j = 0; j < obj->width; j++){
+
+            int flag_y = i+step_y < 0||i+step_y > obj->height-1;
+            int flag_x = j+step_x < 0||j+step_x > obj->width-1;
+            
+
+            if(flag_x&&!flag_y){
+                pthread_mutex_lock(&canvas->locks[start_y + i][start_x + j+step_x]);
+
+            }else if(!flag_x&&flag_y){
+                pthread_mutex_lock(&canvas->locks[start_y + i+step_y][start_x + j]);
+
+            }else if(flag_x&&flag_y){
+                pthread_mutex_lock(&canvas->locks[start_y + i+step_y][start_x + j + step_x]);
+
+            }
+            
+        }
+    }
+
+    int new_start_x = start_x+step_x;
+    int new_start_y = start_y+step_y;
+
+    step_x= step_x*-1;
+    step_y= step_y*-1;
+
+    for (int i = 0; i < obj->height; i++){
+        for (int j = 0; j < obj->width; j++){
+
+            
+            int flag_y = i+step_y < 0||i+step_y > obj->height-1;
+            int flag_x = j+step_x < 0||j+step_x > obj->width-1;
+            
+
+            if(flag_x&&!flag_y){
+                pthread_mutex_unlock(&canvas->locks[new_start_y + i][new_start_x + j+step_x]);
+
+            }else if(!flag_x&&flag_y){
+                pthread_mutex_unlock(&canvas->locks[new_start_y + i+step_y][new_start_x + j]);
+
+            }else if(flag_x&&flag_y){
+                pthread_mutex_unlock(&canvas->locks[new_start_y + i+step_y][new_start_x + j + step_x]);
+
+            }
+        }
+    }
+}
+
+void release_locks(Object *obj, Canvas* canvas){
+    int start_x = obj->x;
+    int start_y = obj->y;
+    for (int i = 0; i < obj->height; i++){
+        for (int j = 0; j < obj->width; j++){
+            pthread_mutex_unlock(&canvas->locks[start_y + i][start_x + j]);
+        }
+    }
+}
+
+int rotate(Object* obj, int new_angle){
+
+    int rotations = new_angle/90;
+    while(rotations){
+        char new_drawing[obj->width][obj->height];
+        int row = 0;
+        int old_width = obj->width;
+        int old_height = obj->height;
+
+        int x = old_height-1;
+
+        for(int i = 0; i < old_height;i++){
+            for(int j = 0; j < old_width; j++){
+                
+                new_drawing[j][x] = obj->drawing[i][j];
+                //printf("%c",new_drawing[j][x]);
+                obj->drawing[i][j] = ' ';
+            }
+            //printf("  %d\n", x);
+            x--;
+        }
+
+        for(int i = 0; i < old_height;i++){
+            for(int j = 0; j < old_width; j++){
+                
+                obj->drawing[i][j] = new_drawing[i][j];
+            }
+        }
+
+        rotations--;
+    }
+
+    return 0;
+}
+
+void explode(Object* obj){
+    return;
+}
+
+void move_object(Object* obj, Canvas* canvas){
+    int move_flag  = 1;
+    while(move_flag){
+        
+        draw_object_ncurses(obj, canvas);
+        
+        int step_x = 0;
+        int step_y = 0;
+
+        if(obj->destined_x > obj->x){
+            step_x = 1;
+        }else if(obj->destined_x < obj->x){
+            step_x = -1;
+        }
+
+        if(obj->destined_y > obj->y){
+            step_y = 1;
+        }else if(obj->destined_y < obj->y){
+            step_y = -1;
+        }
+        
+        update_locks(step_x,step_y,obj, canvas);
+     
+        int new_x, new_y;
+        if(obj->destined_x != obj->x){
+            new_x = obj->x + step_x;
+        }
+
+        if(obj->destined_y != obj->y){
+            new_y = obj->y + step_y;
+        }
+        
+        //update(obj, obj->x, obj->y, new_x, new_y, canvas);
+        
+        rotate(obj, obj->rotations);
+
+        usleep(300000);
+
+        
+        //rotate(obj, obj->rotations);
+        clear_object(obj);
+        
+        //refresh();
+        //usleep(300000);
+
+        obj->x = new_x;
+        obj->y = new_y;
+        move_flag = obj->destined_x != obj->x || obj->destined_y != obj->y;
+        
+    }
+    release_locks(obj, canvas);
+    // sleep(1);
+    // clear();
+    // explode(obj);
+
+}
+
 void* handle_monitors(void* arg) {
     counter++;
     monitors_thread_args* args =(monitors_thread_args* )arg;
     int client_socket = *args->socket;
     Canvas *canvas = args->canvas;
 
-    printf("#%d#¬¬", client_socket);
-
     char input_buffer[1024] = {0};
 
 
     int read_input = read(client_socket, input_buffer, 1024);
-    printf("\n¬¬%d\n", read_input);
     int monitor_height=0;
     int monitor_width=0;
     if(read_input==-1){
@@ -316,7 +572,6 @@ void* handle_monitors(void* arg) {
         monitor_width = atoi(x_ptr+1);
 
         
-        printf("|%d, %d|", monitor_height, monitor_width);
     }else{
         printf("datos invalidos");
         return NULL;
@@ -324,7 +579,6 @@ void* handle_monitors(void* arg) {
     Monitor *monitor = new_monitor(counter, client_socket, monitor_height, monitor_width);
     add_monitor(monitor, canvas);
 
-    printf("[Mensaje recibido: %s]\n", input_buffer);
 
     char output_buffer[20];
     char n[10];
@@ -337,19 +591,27 @@ void* handle_monitors(void* arg) {
 
 
     //sprintf(output_buffer, "%d", counter);
-    send(client_socket, output_buffer, strlen(output_buffer), 0);
-    printf("Respuesta enviada\n");
-    printf("{%d}", client_socket);
+    int sev_val= send(client_socket, output_buffer, strlen(output_buffer), 0);
+    printf("Respuesta enviada%d\n", sev_val);
     
-    pthread_mutex_lock(&conection_mutex);
+    // pthread_mutex_lock(&conection_mutex);
     
-    pthread_mutex_unlock(&conection_mutex);
+    // pthread_mutex_unlock(&conection_mutex);
 
     //close(client_socket);
     saved_monitors++;
     pthread_exit(NULL);
     
     
+}
+
+void* handle_animation(void* arg){
+    animation_thread_args* args =(animation_thread_args* )arg;
+    move_object(args->objeto, args->canvas);
+
+    //printf("animando \n");
+
+    return NULL;
 }
 
 int main(int argc, char *argv[]) {
@@ -402,11 +664,6 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    printf("\n>%d h:%d w:%d\n",-1, canvas->monitors_height,canvas->monitors_width);
-    for(int i=0;i<num_objects;i++){
-        
-        printf("\n>%d x:%d y:%d\n",i, obj_list[i]->destined_x,obj_list[i]->destined_y);
-    }
     
     printf("Servidor escuchando en el puerto %d...\n", PORT);
 
@@ -416,38 +673,35 @@ int main(int argc, char *argv[]) {
 
     pthread_mutex_init(&conection_mutex, NULL);
     while (saved_monitors < max_monitors+1 && saved_monitors < canvas->amount_monitors) {
-        printf("\n<<<a:%d b:%d\n", max_monitors, saved_monitors);
-
         int* new_socket = malloc(sizeof(int));
         *new_socket = accept(server_fd, (struct sockaddr*)&address, &addrlen);
         if (*new_socket < 0) {
             perror("accept falló");
             free(new_socket);
-            continue;
+            //continue;
         }
-
-        printf("\nacepto\n");
-
         monitors_args->canvas = canvas;
         monitors_args->socket = new_socket;
         pthread_t tid;
         pthread_create(&tid, NULL, handle_monitors, monitors_args);
         pthread_detach(tid); // libera recursos automáticamente al terminar
         
-        printf("\na:%d b:%d c:%d>>>\n", max_monitors, saved_monitors, counter);
     }
     
-    printf("\n<<<a:%d b:%d c:%d>>>\n", max_monitors, saved_monitors, counter);
     pthread_mutex_destroy(&conection_mutex);
     close(server_fd);
     
 
-    for(int i =0; i<canvas->monitors_height;i++){
-        for(int j=0; j<canvas->monitors_width;j++){
-            if(canvas->monitors[i][j] != NULL){
-                printf("%d, %d:", canvas->monitors[i][j]->id, canvas->monitors[i][j]->socket);
-            }            
-        }
-    }
+    // for(int i =0; i<canvas->monitors_height;i++){
+    //     for(int j=0; j<canvas->monitors_width;j++){
+    //         if(canvas->monitors[i][j] != NULL){
+    //             printf("%d, %d:", canvas->monitors[i][j]->id, canvas->monitors[i][j]->socket);
+    //         }            
+    //     }
+    // }
+
+    sleep(2);
+    printf("\nhere\n");
+    move_object(obj_list[0], canvas);
     return 0;
 }

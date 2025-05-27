@@ -62,6 +62,7 @@
     "stat.h": "c",
     "stdlib.h": "c",
     "stdio.h": "c",
-    "inet.h": "c"
+    "inet.h": "c",
+    "pthread.h": "c"
   }
 }

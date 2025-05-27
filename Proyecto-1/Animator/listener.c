@@ -9,8 +9,12 @@
 #include <pthread.h>
 #include <sys/stat.h>
 #include <ncurses.h>
-#define PORT 8080
 
+
+#define PORT 8080
+#define MAX_DRAWING_SIZE 900
+
+pthread_mutex_t lock;
 void init_screen(int heigth, int width){
 
     initscr();
@@ -22,8 +26,6 @@ void init_screen(int heigth, int width){
     WINDOW *mywin = newwin(heigth,width,0,0); 
     box(mywin,0,0);
     
-    
-
     int rows, cols;
     getmaxyx(mywin, rows, cols);
     sprintf(n, "%d", rows);
@@ -37,11 +39,80 @@ void init_screen(int heigth, int width){
         mvwaddch(mywin, 0, i, s[i]);
     }
     wrefresh(mywin);
-    sleep(2);
+    //sleep(2);
+    
+    int flag=1;
+    int status, valread, client_fd;
+    char input_buffer[1024] = {0};
+
+    
+    
+
+    
     delwin(mywin);
     endwin();
 
+    //while(flag){
+        valread = read(client_fd, input_buffer,
+                   1024 - 1); 
+    
+        int monitor_height=0;
+        int monitor_width=0;
+
+        char* x_ptr = strchr(input_buffer, ':');
+        char* end_ptr = strchr(input_buffer, ';');
+        
+        char instruction[10]={0};
+        if(x_ptr&&end_ptr&& x_ptr<end_ptr){
+            *x_ptr ='\0';
+            *end_ptr ='\0';
+            strcat(instruction, input_buffer);
+            monitor_width = atoi(x_ptr+1);
+
+            
+            printf("|%d, %d|", monitor_height, monitor_width);
+        }else{
+            printf("datos invalidos");
+
+        }
+
+        flag =0;
+
+    //}
     printf("\n %s",s);
+}
+
+// void draw_object_ncurses(int start_x, int start_y, int height, int width, char drawing[MAX_DRAWING_SIZE]){
+
+    
+
+
+//     for (int i = 0; i < height; i++){
+//         for (int j = 0; j < width; j++){
+            
+//             if (obj->drawing[i][j] != ' '){
+//                 pthread_mutex_lock(&lock);
+//                 mvaddch(start_y + i, start_x + j, obj->drawing[i][j]);
+//                 refresh();
+//                 pthread_mutex_unlock(&lock);
+//             }
+            
+//         }
+//     }
+// }
+
+
+void clear_object(int start_x, int start_y, int height, int width){
+    
+    for (int i = 0; i < height; i++){
+        for (int j = 0; j < width; j++){
+
+            pthread_mutex_lock(&lock);
+            mvaddch(start_y + i, start_x + j, ' ');
+            pthread_mutex_unlock(&lock);
+        }
+    }
+
 }
 
 int main(int argc, char const* argv[]){
@@ -118,14 +189,16 @@ int main(int argc, char const* argv[]){
         monitor_width = atoi(x_ptr+1);
 
         
-        printf("|%d, %d|", monitor_height, monitor_width);
+        //printf("|%d, %d|", monitor_height, monitor_width);
     }else{
         printf("datos invalidos");
         return 0;
     }
 
     printf("<%s>\n", input_buffer);
+
     init_screen(monitor_height,monitor_width);
+
 
     // closing the connected socket
     close(client_fd);
