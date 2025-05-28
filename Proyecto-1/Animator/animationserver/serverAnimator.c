@@ -415,6 +415,7 @@ void send_print(Canvas *canvas){
     int monitor_y_picker=0;
     int monitor_y;
     int monitor_x;
+    printf("\nsending\n");
     //printf("\033[H");
     char output[32];
     for(int i=0; i<canvas->height;i++){
@@ -437,9 +438,9 @@ void send_print(Canvas *canvas){
 }
 void move_object(Object* obj, Canvas* canvas){
     int move_flag  = 1;
-    printf("\033[2J");
+    //printf("\033[2J");
     
-    
+    printf("\nmoving\n");
     while(move_flag){
         
         int step_x = 0;
@@ -505,7 +506,7 @@ void move_object(Object* obj, Canvas* canvas){
 }
 
 void* handle_monitors(void* arg) {
-    counter++;
+    
     monitors_thread_args* args =(monitors_thread_args* )arg;
     int client_socket = *args->socket;
     Canvas *canvas = args->canvas;
@@ -520,6 +521,8 @@ void* handle_monitors(void* arg) {
         printf("conexion invalida");
         return NULL;
     }
+
+    counter++;
     printf("\nconexion valida\n");
     char* x_ptr = strchr(input_buffer, 'x');
     char* end_ptr = strchr(input_buffer, ';');
@@ -626,13 +629,12 @@ int main(int argc, char *argv[]) {
     
     printf("Servidor escuchando en el puerto %d...\n", PORT);
 
-    int max_monitors = canvas->monitors_height*canvas->monitors_width;
     
-    monitors_thread_args monitors_args[max_monitors];
+    monitors_thread_args monitors_args[canvas->amount_monitors];
 
     pthread_mutex_init(&conection_mutex, NULL);
     
-    while (counter < max_monitors && counter < canvas->amount_monitors) {
+    while (counter < canvas->amount_monitors) {
         int* new_socket = malloc(sizeof(int));
         *new_socket = accept(server_fd, (struct sockaddr*)&address, &addrlen);
         if (*new_socket < 0) {

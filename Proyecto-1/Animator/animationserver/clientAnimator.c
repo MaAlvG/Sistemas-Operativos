@@ -175,9 +175,9 @@ int main(int argc, char const* argv[]){
     printf("<%s>\n", input_buffer);
 
     pthread_mutex_init(&lock, NULL);
-    init_screen(monitor_height,monitor_width, client_fd);
+    //init_screen(monitor_height,monitor_width, client_fd);
 
-
+    animation_cicle(client_fd);
     // closing the connected socket
     close(client_fd);
     pthread_mutex_destroy(&lock);
