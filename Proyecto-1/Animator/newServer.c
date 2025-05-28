@@ -334,16 +334,21 @@ void draw_object_ncurses(Object *obj, Canvas *canvas){
     // strcat(send_draw, ";");
     Monitor *monitor = canvas->monitors[monitor_y][monitor_x];
     if(monitor != NULL){
+        
         pthread_mutex_lock(&monitor->monitor_lock);
         int sev_val= send(monitor->socket, send_draw, sizeof(send_draw),0);
         pthread_mutex_unlock(&monitor->monitor_lock);
-        printf("Respuesta enviada %s\n", send_draw);
+        printf("%s\n", send_draw);
     }else{
         printf("nulo");
         
     }
 
-    
+    char ack_buffer[16]={0};
+    recv(monitor->socket, ack_buffer, 15,0);
+    if(strcmp(ack_buffer,"ACK")==0){
+        printf("respondio\n");
+    }   
     
 }
 
@@ -387,10 +392,21 @@ void clear_object(Object* obj, Canvas* canvas){
     // strcat(send_clear,n);
 
     Monitor *monitor = canvas->monitors[monitor_y][monitor_x];
-    pthread_mutex_lock(&monitor->monitor_lock);
-    int sev_val= send(monitor->socket, send_clear, sizeof(send_clear),0);
-    pthread_mutex_unlock(&monitor->monitor_lock);
-    printf("\n%s\n", send_clear);
+    if(monitor != NULL){
+        
+        pthread_mutex_lock(&monitor->monitor_lock);
+        int sev_val= send(monitor->socket, send_clear, sizeof(send_clear),0);
+        pthread_mutex_unlock(&monitor->monitor_lock);
+        printf("\n%s\n", send_clear);
+    }else{
+        printf("nulo");
+        
+    }
+    char ack_buffer[16]={0};
+    recv(monitor->socket, ack_buffer, 15,0);
+    if(strcmp(ack_buffer,"ACK")==0){
+        printf("respondio\n");
+    }
 
 }
 
@@ -497,6 +513,7 @@ void explode(Object* obj){
 
 void move_object(Object* obj, Canvas* canvas){
     int move_flag  = 1;
+    
     while(move_flag){
         
         draw_object_ncurses(obj, canvas);
@@ -531,7 +548,7 @@ void move_object(Object* obj, Canvas* canvas){
         
         rotate(obj, obj->rotations);
 
-        usleep(300000);
+        //usleep(300000);
         //sleep(1);
 
         
@@ -539,7 +556,7 @@ void move_object(Object* obj, Canvas* canvas){
         clear_object(obj, canvas);
         
         //refresh();
-        //usleep(300000);
+        usleep(300000);
 
         obj->x = new_x;
         obj->y = new_y;
@@ -693,6 +710,7 @@ int main(int argc, char *argv[]) {
     monitors_thread_args monitors_args[max_monitors];
 
     pthread_mutex_init(&conection_mutex, NULL);
+    
     while (saved_monitors < max_monitors && saved_monitors < canvas->amount_monitors) {
         int* new_socket = malloc(sizeof(int));
         *new_socket = accept(server_fd, (struct sockaddr*)&address, &addrlen);
@@ -710,7 +728,7 @@ int main(int argc, char *argv[]) {
     }
     
     pthread_mutex_destroy(&conection_mutex);
-    close(server_fd);
+    
     
 
     
@@ -721,5 +739,6 @@ int main(int argc, char *argv[]) {
     
     
     end_animation(canvas);
+    close(server_fd);
     return 0;
 }

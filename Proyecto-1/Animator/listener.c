@@ -30,7 +30,6 @@ void draw_object_ncurses(int start_x, int start_y, int height, int width, char d
             iterator++;
         }
     }
-    //usleep(300000);
 }
 
 
@@ -48,12 +47,12 @@ void clear_object(int start_x, int start_y, int height, int width, WINDOW *win){
 
 }
 
-int process_instruction(char input[1024]){
+int process_instruction(char input[1024], WINDOW *mywin){
     char* x_ptr = strchr(input, ':');
     
     char instruction[10]={0};
 
-    printf("\nread: {%s} \n",input);
+    //printf("\nread: {%s} \n",input);
 
     *x_ptr ='\0';
 
@@ -74,7 +73,7 @@ int process_instruction(char input[1024]){
         
         //printf("\n%d %d %s %d\n", y_pos,x_pos,draw, draw_size);
 
-        //draw_object_ncurses(x_pos, y_pos, draw_size, draw_size,draw, mywin);
+        draw_object_ncurses(x_pos, y_pos, draw_size, draw_size,draw, mywin);
     }else if(strcmp(instruction, "CLEAR")==0){
         char* colon_ptr = strchr(x_ptr+1, ',');
         char* div_ptr = strchr(x_ptr+1, '|');
@@ -87,7 +86,7 @@ int process_instruction(char input[1024]){
 
         int draw_size = atoi(div_ptr+1);
         //printf("\n%d %d %d\n", y_pos,x_pos, draw_size);
-        //sclear_object(x_pos, y_pos, draw_size, draw_size, mywin);
+        clear_object(x_pos, y_pos, draw_size, draw_size, mywin);
     }else if(strcmp(instruction, "EXPLODE")==0){
         
     }else if(strcmp(instruction, "START")==0){
@@ -126,15 +125,12 @@ void init_screen(int heigth, int width, int client_fd){
         mvwaddch(mywin, 0, i, s[i]);
     }
     wrefresh(mywin);
-    sleep(1);
    
-    delwin(mywin);
-    endwin();
     
     int valread;
     
     char input_buffer[1024];
-    char input_acumulator[1024] = {0};
+    char input_acumulator[2046] = {0};
 
     //printf("\nlisten\n");
     
@@ -142,10 +138,10 @@ void init_screen(int heigth, int width, int client_fd){
         
         valread = recv(client_fd, input_buffer, 1023,0); 
     
-        printf("%d", valread);
+        //printf("%d", valread);
         if(valread<=0){
             if(valread==0){
-                printf("datos invalidos\n");
+                printf("cierre del servidor\n");
             //flag=0;
             
             }else{
@@ -153,7 +149,7 @@ void init_screen(int heigth, int width, int client_fd){
             }
             break;
         }
-
+        //printf("\n%s\n", input_buffer);
         input_buffer[valread] ='\0';
         strcat(input_acumulator,input_buffer);
         char *start = input_acumulator;
@@ -161,9 +157,10 @@ void init_screen(int heigth, int width, int client_fd){
 
         int result;
         while((end= strchr(start, ';'))!=NULL){
-            *end = '\0';
-            result = process_instruction(start);
+            //*end = '\0';
+            result = process_instruction(start, mywin);
             start=end+1;
+            send(client_fd, "ACK", 3, 0);
         }
 
         if(result==-1){
@@ -174,7 +171,9 @@ void init_screen(int heigth, int width, int client_fd){
         
         //usleep(300000);
     }
-
+    delwin(mywin);
+    endwin();
+    
    
     printf("\nstop listen\n");
 }
