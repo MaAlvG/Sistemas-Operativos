@@ -1,6 +1,6 @@
 full_canvas_size:
-2000
-1000
+30
+30
 
 monitor_disposition: cantidad,alto,ancho
 2
@@ -24,11 +24,11 @@ end_time:
 30
 
 initial_pos:
-20
+10
 170
 
 end_pos:
-23
+20
 200
 
 rotation:
