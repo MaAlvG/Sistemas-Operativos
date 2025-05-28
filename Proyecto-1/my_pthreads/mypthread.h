@@ -4,8 +4,13 @@
 #include <ucontext.h>
 #include <stdint.h>
 
+
 // Tamaño del stack para cada hilo (8MB)
 #define THREAD_STACK_SIZE (8 * 1024 * 1024)
+
+// Parámetros de scheduling
+#define DEFAULT_TIME_QUANTUM 100000 // 100ms en microsegundos
+#define DEFAULT_TICKETS 10
 
 // Definimos los estados de un hilo
 typedef enum {
@@ -66,7 +71,8 @@ void mythread_yield(void);
 
 // Funciones para cambio de scheduler
 int mythread_cached(mythread_t *thread, mythread_sched_t new_sched);
-int mythread_set_sched_param(mythread_t *thread, int priority, int tickets);
+void mythread_set_sched_policy(mythread_sched_t policy);
+int mythread_set_sched_param(mythread_t *thread, const mythread_sched_param_t *param);
 
 // Funciones de mutex
 int mythread_mutex_init(mythread_mutex_t *mutex);
@@ -79,5 +85,12 @@ int mythread_mutex_trylock(mythread_mutex_t *mutex);
 void _mythread_scheduler_init(void);
 void _mythread_schedule(void);
 void _mythread_context_switch(mythread_t *new_thread);
+
+// Estructura para parámetros de scheduling
+typedef struct {
+    int time_quantum;    // Para Round Robin (en microsegundos)
+    int tickets;         // Para Lottery Scheduler
+    int rt_priority;     // Para Tiempo Real (1=mayor prioridad)
+} mythread_sched_param_t;
 
 #endif // MYPTHREAD_H
