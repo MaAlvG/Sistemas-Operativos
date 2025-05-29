@@ -4,6 +4,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <bits/types/timer_t.h>
+#include <time.h>
 
 // Variables globales del sistema
 static mythread_t *current_thread = NULL;
@@ -254,7 +255,7 @@ static mythread_t *_find_thread_by_tid(int id)
 }
 
 // Función de scheduling (simplificada, se ampliará en el paso 3)
-static void _mythread_schedule(void)
+static void _scheduler_round_robin(void)
 {
     mythread_t *next = _dequeue_ready();
     if (next == NULL)
@@ -269,6 +270,86 @@ static void _mythread_schedule(void)
 
     // Cambiar contexto
     swapcontext(&prev->context, &next->context);
+}
+
+// Función de scheduling basada en lotería
+static void _scheduler_lottery(void)
+{
+    mythread_mutex_lock(&thread_table_lock);
+
+    if (ready_queue == NULL)
+    {
+        mythread_mutex_unlock(&thread_table_lock);
+        setcontext(&main_thread.context);
+    }
+
+    // Calcular el total de tickets
+    int total_tickets = 0;
+    mythread_t *t = ready_queue;
+    do
+    {
+        total_tickets += t->attr.tickets;
+        t = t->next;
+    } while (t != ready_queue);
+
+    // Seleccionar un ticket ganador
+    srand(time(NULL));
+    int winning_ticket = rand() % total_tickets;
+
+    // Encontrar el hilo ganador
+    mythread_t *winner = ready_queue;
+    int cumulative_tickets = 0;
+    do
+    {
+        cumulative_tickets += winner->attr.tickets;
+        if (cumulative_tickets > winning_ticket)
+        {
+            break;
+        }
+        winner = winner->next;
+    } while (winner != ready_queue);
+
+    mythread_mutex_unlock(&thread_table_lock);
+
+    // Cambiar al hilo ganador
+    mythread_t *prev = current_thread;
+    current_thread = winner;
+    winner->state = MYTHREAD_STATE_RUNNING;
+
+    swapcontext(&prev->context, &winner->context);
+}
+
+// Función de scheduling en tiempo real
+static void _scheduler_real_time(void)
+{
+    mythread_mutex_lock(&thread_table_lock);
+
+    if (ready_queue == NULL)
+    {
+        mythread_mutex_unlock(&thread_table_lock);
+        setcontext(&main_thread.context);
+    }
+
+    // Encontrar el hilo con mayor prioridad
+    mythread_t *highest_priority_thread = ready_queue;
+    mythread_t *t = ready_queue->next;
+    do
+    {
+        if (t->attr.sched_priority > highest_priority_thread->attr.sched_priority)
+        {
+            highest_priority_thread = t;
+        }
+        t = t->next;
+    } while (t != ready_queue);
+
+    mythread_mutex_unlock(&thread_table_lock);
+
+    // Cambiar al hilo con mayor prioridad
+    mythread_t *prev = current_thread;
+    current_thread = highest_priority_thread;
+    highest_priority_thread->state = MYTHREAD_STATE_RUNNING;
+
+    swapcontext(&prev->context, &highest_priority_thread->context);
 }
 
 // Inicialización del sistema
