@@ -12,12 +12,10 @@
 #define MAX_CANVAS_SIZE 1001
 #define PORT 8080
 #define MAX_OBJECT_SIZE 30
-#define MAX_MONITORS 4
+#define MAX_MONITORS 6
 #define MAX_MONITOR_HEIGHT 31;
 #define MAX_MONITOR_WIDTH 128;
 
-pthread_mutex_t conection_mutex;
-pthread_mutex_t lock;
 int counter=0;
 
 typedef struct{
@@ -54,14 +52,8 @@ typedef struct{
 
 typedef struct{
     Object* objeto;
-    //Monitor** monitor;
     Canvas* canvas;
 } animation_thread_args;
-
-typedef struct{
-    int *socket;
-    Canvas* canvas;
-} monitors_thread_args;
 
 
 /*identificador, x de inicio, y de inicio, x final, y final, tiempo de inicio, tiempo de final,*/
@@ -130,7 +122,7 @@ int load_config(const char* filename, Canvas* canvas, Object  ***arr, int *size)
         for(int j =0;j<canvas->width; j++){
             
             pthread_mutex_init(&canvas->locks[i][j], NULL);
-            canvas->canvas_drawing[i][j]= empty;
+            canvas->canvas_drawing[i][j]= '.';
 
         }
     }
@@ -372,7 +364,7 @@ void erase_object(Object *obj,Canvas *canvas){
     for (int i = 0; i < obj->height; i++){
         for (int j = 0; j < obj->width; j++){
             
-            canvas->canvas_drawing[start_y + i][start_x + j]=' ';            
+            canvas->canvas_drawing[start_y + i][start_x + j]='.';            
         }
     }
 }
@@ -439,11 +431,12 @@ void send_print(Canvas *canvas){
             } 
             //send(monitor->socket, output, sizeof(output),0);
             //printf("\n %d %d %d %d\n",i,j,monitor_y, monitor_x);
-            // printf("\033[%d;%dH%c",j,i,canvas->canvas_drawing[i][j]);
-            // fflush(stdout);
+            printf("\033[%d;%dH%c",j,i,canvas->canvas_drawing[i][j]);
+            fflush(stdout);
         }
     }
 }
+
 void move_object(Object* obj, Canvas* canvas){
     int move_flag  = 1;
     //printf("\033[2J");
@@ -480,7 +473,7 @@ void move_object(Object* obj, Canvas* canvas){
         draw_object(obj, canvas);
         send_print(canvas);
         //update(obj, obj->x, obj->y, new_x, new_y, canvas);
-        usleep(300000);
+        sleep(2);
         erase_object(obj, canvas);
         
         rotate(obj, obj->rotations);
@@ -523,62 +516,6 @@ int connect_monitors(int *socket, Canvas *canvas){
    return 0;
 }
 
-
-void* handle_monitors(void* arg) {
-    
-    monitors_thread_args* args =(monitors_thread_args* )arg;
-    int client_socket = *args->socket;
-    Canvas *canvas = args->canvas;
-
-    char input_buffer[1024] = {0};
-
-
-    int read_input = read(client_socket, input_buffer, 1024);
-    int monitor_height=0;
-    int monitor_width=0;
-    
-    if(read_input==-1){
-        printf("conexion invalida");
-        return NULL;
-    }
-    printf("\nconexion valida\n");
-    char* x_ptr = strchr(input_buffer, 'x');
-    char* end_ptr = strchr(input_buffer, ';');
-
-    if(x_ptr&&end_ptr&& x_ptr<end_ptr){
-        *x_ptr ='\0';
-        *end_ptr ='\0';
-        monitor_height = atoi(input_buffer);
-        monitor_width = atoi(x_ptr+1);
-
-        
-    }else{
-        printf("datos invalidos %s", input_buffer);
-        pthread_exit(NULL);
-    }
-    Monitor *monitor = new_monitor(counter, client_socket, monitor_height, monitor_width);
-    
-    add_monitor(monitor, canvas);
-
-
-    char output_buffer[20];
-    char n[10];
-    sprintf(n,"%d", monitor->height);
-    strcat(output_buffer,n);
-    strcat(output_buffer,"x");
-    sprintf(n,"%d",monitor->width);
-    strcat(output_buffer,n);
-    strcat(output_buffer,";");
-
-
-    //sprintf(output_buffer, "%d", counter);
-    int sev_val= send(client_socket, output_buffer, strlen(output_buffer), 0);
-    printf("Respuesta enviada %s\n", output_buffer);
-    
-    //close(client_socket);
-    pthread_exit(NULL);
-    
-}
 
 void* handle_animation(void* arg){
     animation_thread_args* args =(animation_thread_args* )arg;
@@ -656,8 +593,6 @@ int main(int argc, char *argv[]) {
     
     printf("Servidor escuchando en el puerto %d...\n", PORT);
 
-    
-    monitors_thread_args monitors_args[canvas->amount_monitors];
 
     //pthread_mutex_init(&conection_mutex, NULL);
     
@@ -680,7 +615,7 @@ int main(int argc, char *argv[]) {
     //pthread_mutex_destroy(&conection_mutex);
     printf("\nfuera\n");
     sleep(1);
-    //move_object(obj_list[0], canvas);
+    move_object(obj_list[0], canvas);
     end_animation(canvas);
     close(server_fd);
     return 0;

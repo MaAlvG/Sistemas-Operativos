@@ -14,51 +14,13 @@
 #define PORT 8080
 #define MAX_DRAWING_SIZE 900
 
-pthread_mutex_t lock;
-
-void init_screen(int heigth, int width, int client_fd){
-
-    initscr();
-    
-    char s[50] = "Filas: ";
-    char n[10];
-    noecho();
-    curs_set(FALSE);
-    WINDOW *mywin = newwin(heigth,width,0,0); 
-    box(mywin,0,0);
-    
-    int rows, cols;
-    getmaxyx(mywin, rows, cols);
-    sprintf(n, "%d", rows);
-    strcat(s, n);
-    sprintf(n, "%d", cols);
-    strcat(s, "Columnas:");
-    strcat(s, n);
-    int len = strlen(s);
-    //printw("Filas: %d, Columnas: %d\n", rows, cols);
-    for (int i = 0; i < len; i++){
-        mvwaddch(mywin, 0, i, s[i]);
-    }
-    wrefresh(mywin);
-}
-
-int process_instruction(char *input){
+void process_instruction(char *input){
     int x,y;
     char c;
-
-    char* x_ptr = strchr(input, ';')+1;
-    *x_ptr = '\0';
-
-    printf("\nread: {%s} \n",input);
-
-    if(strcmp(input, "END;")==0){
-        return -1;
-    }
 
     sscanf(input, "PRINT:%d,%d,%c;", &y,&x,&c);
     printf("\033[%d;%dH%c",x,y,c);
     fflush(stdout);
-    return 0;
 }
 
 void animation_cicle(int client_fd){
@@ -74,7 +36,7 @@ void animation_cicle(int client_fd){
     
     while(1){
         
-        valread = recv(client_fd, input_buffer, 1023,0); 
+        valread = recv(client_fd, input_buffer, sizeof(input_buffer)-1,0); 
     
         //printf("%d", valread);
         if(valread<=0){
@@ -87,21 +49,22 @@ void animation_cicle(int client_fd){
             }
             break;
         }
-        printf("\n%s\n", input_buffer);
+        //printf("\n%s\n", input_buffer);
         input_buffer[valread] ='\0';
         strcat(input_acumulator,input_buffer);
         char *start = input_acumulator;
         char *end;
 
-        int result;
-        while((end= strchr(start, ';'))!=NULL){
-            //*end = '\0';
-            result= process_instruction(start);
-        }
-
-        if(result == -1){
+        if(strcmp(start,"END;") == 0){
             break;
         }
+        while((end= strchr(start, ';'))!=NULL){
+            *end = '\0';
+            process_instruction(start);
+            start = end+1;
+        }
+
+        
         memmove(input_acumulator, start, strlen(start)+1);
     }
 
