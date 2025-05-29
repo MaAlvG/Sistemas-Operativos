@@ -403,3 +403,28 @@ int mythread_chsched(mythread_t *thread, int new_sched_policy)
     mythread_mutex_unlock(&thread_table_lock);
     return 0;
 }
+
+static void _mythread_schedule(void)
+{
+    mythread_t *next = _dequeue_ready();
+    if (next == NULL)
+    {
+        setcontext(&main_thread.context);
+    }
+
+    switch (next->attr.sched_policy)
+    {
+    case MYTHREAD_SCHED_RR:
+        _scheduler_round_robin();
+        break;
+    case MYTHREAD_SCHED_LOTTERY:
+        _scheduler_lottery();
+        break;
+    case MYTHREAD_SCHED_RT:
+        _scheduler_real_time();
+        break;
+    default:
+        _scheduler_round_robin(); // Por defecto
+        break;
+    }
+}
