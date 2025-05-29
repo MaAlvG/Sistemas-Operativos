@@ -42,13 +42,23 @@ void init_screen(int heigth, int width, int client_fd){
     wrefresh(mywin);
 }
 
-void process_instruction(char *input){
+int process_instruction(char *input){
     int x,y;
     char c;
+
+    char* x_ptr = strchr(input, ';')+1;
+    *x_ptr = '\0';
+
+    printf("\nread: {%s} \n",input);
+
+    if(strcmp(input, "END;")==0){
+        return -1;
+    }
 
     sscanf(input, "PRINT:%d,%d,%c;", &y,&x,&c);
     printf("\033[%d;%dH%c",x,y,c);
     fflush(stdout);
+    return 0;
 }
 
 void animation_cicle(int client_fd){
@@ -77,40 +87,27 @@ void animation_cicle(int client_fd){
             }
             break;
         }
-        //printf("\n%s\n", input_buffer);
+        printf("\n%s\n", input_buffer);
         input_buffer[valread] ='\0';
         strcat(input_acumulator,input_buffer);
         char *start = input_acumulator;
         char *end;
 
+        int result;
         while((end= strchr(start, ';'))!=NULL){
             //*end = '\0';
-            process_instruction(start);
+            result= process_instruction(start);
         }
 
+        if(result == -1){
+            break;
+        }
         memmove(input_acumulator, start, strlen(start)+1);
     }
 
+    printf("\nEND\n");
 }
 int main(int argc, char const* argv[]){
-
-    initscr();
-    
-    char s[10] ={0};
-    char n[10];
-    
-    
-
-    int rows, cols;
-    getmaxyx(stdscr, rows, cols);
-    sprintf(n, "%d", rows);
-    strcat(s, n);
-    strcat(s, "x");
-    sprintf(n, "%d", cols);
-    strcat(s, n);
-    strcat(s, ";");
-    int len = strlen(s);
-    endwin();
 
     int status, valread, client_fd;
     struct sockaddr_in serv_addr;
@@ -146,40 +143,23 @@ int main(int argc, char const* argv[]){
     // subtract 1 for the null
     // terminator at the end
 
-    sleep(1);
-    send(client_fd, s, strlen(s), 0);
+    //sleep(1);
+    send(client_fd, hello, strlen(hello), 0);
     printf("Hello message sent\n");
     
-    valread = read(client_fd, input_buffer,
-                   1024 - 1); 
+    valread = recv(client_fd, input_buffer, 1023, 0); 
     
-    int monitor_height=0;
-    int monitor_width=0;
-
-    char* x_ptr = strchr(input_buffer, 'x');
-    char* end_ptr = strchr(input_buffer, ';');
-
-    if(x_ptr&&end_ptr&& x_ptr<end_ptr){
-        *x_ptr ='\0';
-        *end_ptr ='\0';
-        monitor_height = atoi(input_buffer);
-        monitor_width = atoi(x_ptr+1);
-
-        
-        //printf("|%d, %d|", monitor_height, monitor_width);
-    }else{
-        printf("datos invalidos");
+    if(valread==-1){
+        printf("\ndatos invalidos\n");
         return 0;
     }
 
     printf("<%s>\n", input_buffer);
 
-    pthread_mutex_init(&lock, NULL);
     //init_screen(monitor_height,monitor_width, client_fd);
-
+    //sleep(1);
     animation_cicle(client_fd);
     // closing the connected socket
     close(client_fd);
-    pthread_mutex_destroy(&lock);
     return 0;
 }

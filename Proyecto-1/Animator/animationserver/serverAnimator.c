@@ -19,7 +19,6 @@
 pthread_mutex_t conection_mutex;
 pthread_mutex_t lock;
 int counter=0;
-int saved_monitors=0;
 
 typedef struct{
     int id;
@@ -151,6 +150,7 @@ int load_config(const char* filename, Canvas* canvas, Object  ***arr, int *size)
     width_monitors = atoi(line);
     canvas->monitors_width = width_monitors;
 
+    printf("\n|%d %d %d|\n", canvas->amount_monitors ,canvas->monitors_height,canvas->monitors_width);
     //Cantidad de objetos para la animacion
     int num_objects;
     fgets(line, 2, fp);
@@ -278,11 +278,12 @@ void add_monitor(Monitor *monitor,Canvas *canvas){
         for(int j=0; j<x_monitors;j++){
             if(canvas->monitors[i][j]== NULL){
                 canvas->monitors[i][j]= monitor;
+                printf("\n[%d %d]\n",i, j);
                 i= y_monitors+1;
-                j=x_monitors+1;
-                //printf("\n{%d %d}\n",monitor->height, monitor->width);
+                j= x_monitors+1;
+                
             }else{
-                //printf("no era null");
+                printf("no era null");
             }
         }   
     }
@@ -429,7 +430,14 @@ void send_print(Canvas *canvas){
 
             sprintf(output, "PRINT:%d,%d,%c;",i,j,canvas->canvas_drawing[i][j]);
             Monitor *monitor =canvas->monitors[monitor_y][monitor_x];
-            send(monitor->socket, output, sizeof(output),0);
+
+            if(canvas->monitors[monitor_y][monitor_x] != NULL){
+                //printf("END; %d\n", canvas->monitors[i][j]->socket);
+                send(monitor->socket, output, sizeof(output),0);
+            }else{
+                printf("\n nulo %d %d %d %d\n",i,j,monitor_y, monitor_x);
+            } 
+            //send(monitor->socket, output, sizeof(output),0);
             //printf("\n %d %d %d %d\n",i,j,monitor_y, monitor_x);
             // printf("\033[%d;%dH%c",j,i,canvas->canvas_drawing[i][j]);
             // fflush(stdout);
@@ -460,10 +468,6 @@ void move_object(Object* obj, Canvas* canvas){
         
         update_locks(step_x,step_y,obj, canvas);
         
-        
-        
-        
-        //send_print(canvas);
         int new_x, new_y;
         if(obj->destined_x != obj->x){
             new_x = obj->x + step_x;
@@ -472,8 +476,7 @@ void move_object(Object* obj, Canvas* canvas){
         if(obj->destined_y != obj->y){
             new_y = obj->y + step_y;
         }
-        
-        
+
         draw_object(obj, canvas);
         send_print(canvas);
         //update(obj, obj->x, obj->y, new_x, new_y, canvas);
@@ -482,28 +485,44 @@ void move_object(Object* obj, Canvas* canvas){
         
         rotate(obj, obj->rotations);
         
-        
-        //usleep(300000);
-        
-
-        
-        //rotate(obj, obj->rotations);
-        
-        
-        //refresh();
-        //usleep(300000);
-        
         obj->x = new_x;
         obj->y = new_y;
         move_flag = obj->destined_x != obj->x || obj->destined_y != obj->y;
         
     }
     release_locks(obj, canvas);
-    // sleep(1);
-    // clear();
-    // explode(obj);
-
 }
+
+int connect_monitors(int *socket, Canvas *canvas){
+
+    int client_socket = *socket;
+    char input_buffer[1024] = {0};
+
+
+    int read_input = recv(client_socket, input_buffer, 1023,0);
+    int monitor_height=31;
+    int monitor_width=128;
+    
+    if(read_input==-1){
+        printf("conexion invalida");
+        return -1;
+    }
+
+    Monitor *monitor = new_monitor(counter, client_socket, monitor_height, monitor_width);
+    
+    add_monitor(monitor, canvas);
+
+
+    char *output_buffer= "Conexion establecida";
+
+    //sprintf(output_buffer, "%d", counter);
+    int sev_val= send(client_socket, output_buffer, strlen(output_buffer), 0);
+    printf("Respuesta enviada %s\n", output_buffer);
+    
+    //close(client_socket);
+   return 0;
+}
+
 
 void* handle_monitors(void* arg) {
     
@@ -517,12 +536,11 @@ void* handle_monitors(void* arg) {
     int read_input = read(client_socket, input_buffer, 1024);
     int monitor_height=0;
     int monitor_width=0;
+    
     if(read_input==-1){
         printf("conexion invalida");
         return NULL;
     }
-
-    counter++;
     printf("\nconexion valida\n");
     char* x_ptr = strchr(input_buffer, 'x');
     char* end_ptr = strchr(input_buffer, ';');
@@ -535,8 +553,8 @@ void* handle_monitors(void* arg) {
 
         
     }else{
-        printf("datos invalidos");
-        return NULL;
+        printf("datos invalidos %s", input_buffer);
+        pthread_exit(NULL);
     }
     Monitor *monitor = new_monitor(counter, client_socket, monitor_height, monitor_width);
     
@@ -555,15 +573,10 @@ void* handle_monitors(void* arg) {
 
     //sprintf(output_buffer, "%d", counter);
     int sev_val= send(client_socket, output_buffer, strlen(output_buffer), 0);
-    printf("Respuesta enviada %d\n", counter);
+    printf("Respuesta enviada %s\n", output_buffer);
     
-    // pthread_mutex_lock(&conection_mutex);
-    
-    // pthread_mutex_unlock(&conection_mutex);
-
     //close(client_socket);
     pthread_exit(NULL);
-    
     
 }
 
@@ -574,6 +587,19 @@ void* handle_animation(void* arg){
     //printf("animando \n");
 
     return NULL;
+}
+
+void end_animation(Canvas * canvas){
+    printf("\nending\n");
+    for(int i =0; i<canvas->monitors_height;i++){
+        for(int j=0; j<canvas->monitors_width;j++){
+            if(canvas->monitors[i][j] != NULL){
+                printf("END; %d %d %d\n", canvas->monitors[i][j]->socket, i, j);
+                send(canvas->monitors[i][j]->socket, "END;", 6,0);
+            }            
+        }
+    }
+    
 }
 
 int main(int argc, char *argv[]) {
@@ -600,6 +626,7 @@ int main(int argc, char *argv[]) {
     int num_objects=0;
     load_config(config_file, canvas, &obj_list, &num_objects);
     printf("\nbien 2\n");
+
     int server_fd;
     struct sockaddr_in address;
     socklen_t addrlen = sizeof(address);
@@ -632,7 +659,7 @@ int main(int argc, char *argv[]) {
     
     monitors_thread_args monitors_args[canvas->amount_monitors];
 
-    pthread_mutex_init(&conection_mutex, NULL);
+    //pthread_mutex_init(&conection_mutex, NULL);
     
     while (counter < canvas->amount_monitors) {
         int* new_socket = malloc(sizeof(int));
@@ -640,20 +667,21 @@ int main(int argc, char *argv[]) {
         if (*new_socket < 0) {
             perror("accept falló");
             free(new_socket);
-            //continue;
+            continue;
         }
-        monitors_args->canvas = canvas;
-        monitors_args->socket = new_socket;
-        pthread_t tid;
-        pthread_create(&tid, NULL, handle_monitors, monitors_args);
-        pthread_detach(tid); // libera recursos automáticamente al terminar
-        
+
+        int result = connect_monitors(new_socket, canvas);
+        if(result == 0){
+            counter++;
+        }
+
     }
     
-    pthread_mutex_destroy(&conection_mutex);
+    //pthread_mutex_destroy(&conection_mutex);
     printf("\nfuera\n");
-    move_object(obj_list[0], canvas);
-    //end_animation(canvas);
+    sleep(1);
+    //move_object(obj_list[0], canvas);
+    end_animation(canvas);
     close(server_fd);
     return 0;
 }
