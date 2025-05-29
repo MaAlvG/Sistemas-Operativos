@@ -8,32 +8,28 @@
 #include <netinet/in.h>
 #include <pthread.h>
 #include <sys/stat.h>
-#include <ncurses.h>
 
 
 #define PORT 8080
 #define MAX_DRAWING_SIZE 900
 
 void process_instruction(char *input){
-    int x,y;
-    char c;
-
-    sscanf(input, "PRINT:%d,%d,%c;", &y,&x,&c);
-    printf("\033[%d;%dH%c",x,y,c);
-    fflush(stdout);
+    
+    
+    
 }
 
 void animation_cicle(int client_fd){
 
     int valread;
     
-    char input_buffer[32];
-
+    char input_buffer[64];
+    char input_acumulator[128] = {0};
     printf("\033[2J");
-    char input_acumulator[64] = {0};
+    
 
     //printf("\nlisten\n");
-    
+    int flag =1;
     while(1){
         
         valread = recv(client_fd, input_buffer, sizeof(input_buffer)-1,0); 
@@ -51,22 +47,37 @@ void animation_cicle(int client_fd){
         }
         //printf("\n%s\n", input_buffer);
         input_buffer[valread] ='\0';
+        
+
         strcat(input_acumulator,input_buffer);
         char *start = input_acumulator;
         char *end;
 
-        if(strcmp(start,"END;") == 0){
-            break;
-        }
         while((end= strchr(start, ';'))!=NULL){
             *end = '\0';
-            process_instruction(start);
+            // if(strcmp(start,"END;") == 0){
+            //     flag=0;
+            //     break;
+            // }
+            //process_instruction(start);
+            int x,y;
+            char c;
+
+            if(sscanf(start, "PRINT:%d,%d,%c", &y,&x,&c)==3){
+                printf("\033[%d;%dH%c",y,x,c);
+                fflush(stdout);
+            }
             start = end+1;
         }
 
-        
-        memmove(input_acumulator, start, strlen(start)+1);
+        if(*start){
+            memmove(input_acumulator, start, strlen(start)+1);
+        }else{
+            memset(input_acumulator,0,sizeof(input_acumulator));
+        }
+
     }
+        
 
     printf("\nEND\n");
 }
@@ -121,7 +132,11 @@ int main(int argc, char const* argv[]){
 
     //init_screen(monitor_height,monitor_width, client_fd);
     //sleep(1);
+    printf("\e[?25l");
+    fflush(stdout);
     animation_cicle(client_fd);
+    printf("\e[?25H");
+    fflush(stdout);
     // closing the connected socket
     close(client_fd);
     return 0;

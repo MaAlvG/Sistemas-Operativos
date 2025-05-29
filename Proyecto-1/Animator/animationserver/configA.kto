@@ -1,6 +1,6 @@
 full_canvas_size:
 31
-100
+128
 
 monitor_disposition: cantidad,alto,ancho
 1
@@ -46,7 +46,7 @@ end_object_description;
 
 start_object_description:
 object_name:
-arrow
+arrowA
 
 object_type:
 sorteo 
@@ -59,11 +59,11 @@ end_time:
 
 initial_pos:
 30
-40
+0
 
 end_pos:
 31
-0
+24
 
 rotation:
 270
@@ -80,7 +80,7 @@ end_object_description;
 
 start_object_description:
 object_name:
-arrow
+arrowB
 
 object_type:
 sorteo 
@@ -93,10 +93,10 @@ end_time:
 
 initial_pos:
 3
-41
+1
 
 end_pos:
-63
+20
 20
 
 rotation:
