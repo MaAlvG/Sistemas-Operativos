@@ -36,11 +36,8 @@ void animation_cicle(int client_fd){
     
         //printf("%d", valread);
         if(valread<=0){
-            if(valread==0){
-                printf("cierre del servidor\n");
+            if(valread<0){
             //flag=0;
-            
-            }else{
                 perror("error al leer");
             }
             break;

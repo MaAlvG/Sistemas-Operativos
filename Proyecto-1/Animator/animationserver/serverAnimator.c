@@ -142,7 +142,7 @@ int load_config(const char* filename, Canvas* canvas, Object  ***arr, int *size)
     width_monitors = atoi(line);
     canvas->monitors_width = width_monitors;
 
-    printf("\n|%d %d %d|\n", canvas->amount_monitors ,canvas->monitors_height,canvas->monitors_width);
+    //printf("\n|%d %d %d|\n", canvas->amount_monitors ,canvas->monitors_height,canvas->monitors_width);
     //Cantidad de objetos para la animacion
     int num_objects;
     fgets(line, 2, fp);
@@ -150,7 +150,7 @@ int load_config(const char* filename, Canvas* canvas, Object  ***arr, int *size)
     fgets(line, 5, fp);
     
     num_objects = atoi(line);
-    printf("[%d]\n", num_objects);
+    //printf("[%d]\n", num_objects);
     //ciclo para obtener la informacion de cada objeto
     for(int i =0; i< num_objects; i++){
         char obj_id[20];
@@ -369,6 +369,7 @@ void erase_object(Object *obj,Canvas *canvas){
         }
     }
 }
+
 int rotate(Object* obj, int new_angle){
 
     int rotations = new_angle/90;
@@ -409,8 +410,6 @@ void send_print(Canvas *canvas){
     int monitor_y_picker=0;
     int monitor_y;
     int monitor_x;
-    //printf("\nsending\n");
-    //printf("\033[H");
     char output[32];
     for(int i=0; i<canvas->height;i++){
         for(int j =0;j<canvas->width;j++){
@@ -425,15 +424,9 @@ void send_print(Canvas *canvas){
             Monitor *monitor =canvas->monitors[monitor_y][monitor_x];
 
             if(canvas->monitors[monitor_y][monitor_x] != NULL){
-                //printf("END; %d\n", canvas->monitors[i][j]->socket);
-                //usleep(1);
                 nanosleep(&ts, NULL);
                 send(monitor->socket, output, sizeof(output),0);
             }
-            //send(monitor->socket, output, sizeof(output),0);
-            //printf("\n %d %d %d %d\n",i,j,monitor_y, monitor_x);
-            //printf("\033[%d;%dH%c",i,j,canvas->canvas_drawing[i][j]);
-            //fflush(stdout);
         }
     }
 }
@@ -451,14 +444,14 @@ void print_object_info(Object *obj){
 
 void move_object(Object* obj, Canvas* canvas){
     int move_flag  = 1;
-    //printf("\033[2J");
-    //print_object_info(obj);
-    printf("\nmoving\n");
     while(move_flag){
         
         int step_x = 0;
         int step_y = 0;
 
+
+        draw_object(obj, canvas);
+        send_print(canvas);
         if(obj->destined_x > obj->x){
             step_x = 1;
         }else if(obj->destined_x < obj->x){
@@ -480,12 +473,11 @@ void move_object(Object* obj, Canvas* canvas){
         if(obj->destined_y != obj->y){
             new_y = obj->y + step_y;
         }
-        draw_object(obj, canvas);
-        send_print(canvas);
         //update(obj, obj->x, obj->y, new_x, new_y, canvas);
         //sleep(1);
-        erase_object(obj, canvas);
+        
         rotate(obj, obj->rotations);
+        erase_object(obj, canvas);
         
         obj->x = new_x;
         obj->y = new_y;
@@ -524,7 +516,6 @@ int connect_monitors(int *socket, Canvas *canvas){
    return 0;
 }
 
-
 void* handle_animation(void* arg){
     animation_thread_args* args =(animation_thread_args* )arg;
     move_object(args->objeto, args->canvas);
@@ -535,7 +526,6 @@ void* handle_animation(void* arg){
 }
 
 void end_animation(Canvas * canvas){
-    printf("\nending\n");
     for(int i =0; i<canvas->monitors_height;i++){
         for(int j=0; j<canvas->monitors_width;j++){
             if(canvas->monitors[i][j] != NULL){
@@ -546,7 +536,6 @@ void end_animation(Canvas * canvas){
     }
     
 }
-
 
 int main(int argc, char *argv[]) {
     int arg_opt = 0;
@@ -565,13 +554,11 @@ int main(int argc, char *argv[]) {
             exit(EXIT_FAILURE);
         }
     }
-    printf("\nbien 1\n");
     Canvas* canvas = calloc(1, sizeof(Canvas));
 
     Object** obj_list = NULL;
     int num_objects=0;
     load_config(config_file, canvas, &obj_list, &num_objects);
-    printf("\nbien 2\n");
 
     int server_fd;
     struct sockaddr_in address;
@@ -600,7 +587,7 @@ int main(int argc, char *argv[]) {
     }
 
     ts.tv_sec=0;
-    ts.tv_nsec= 1;
+    ts.tv_nsec= 100;
     printf("Servidor escuchando en el puerto %d...\n", PORT);
 
 
@@ -624,13 +611,10 @@ int main(int argc, char *argv[]) {
 
     pthread_t threads[num_objects];
     animation_thread_args args[num_objects];
-    printf("\nfuera\n");
-    printf("\e[?25l");
     sleep(1);
     for(int i=0;i< num_objects;i++){
 
         //print_object_info(obj_list[i]);
-        printf("<%d %s %d %d>\n",i,obj_list[i]->id, obj_list[i]->rotations,obj_list[i]->height);
         args[i].canvas = canvas;
         args[i].objeto = obj_list[i];
         pthread_create(&threads[i],NULL,handle_animation, &args[i]);
@@ -640,14 +624,8 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < num_objects; i++) {
         pthread_join(threads[i], NULL);
     }
-    printf("\e[?25H");
     //pthread_mutex_destroy(&conection_mutex);
-    printf("\ndos\n");
     sleep(1);
-    // move_object(obj_list[0], canvas);
-    
-    // move_object(obj_list[1], canvas);
-    // move_object(obj_list[2], canvas);
     end_animation(canvas);
     close(server_fd);
     return 0;
