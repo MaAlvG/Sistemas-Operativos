@@ -28,7 +28,7 @@ initial_pos:
 10
 
 end_pos:
-14
+20
 14
 
 rotation:
@@ -92,12 +92,12 @@ end_time:
 30
 
 initial_pos:
-10
+55
 10
 
 end_pos:
-40
-20
+22
+22
 
 rotation:
 90

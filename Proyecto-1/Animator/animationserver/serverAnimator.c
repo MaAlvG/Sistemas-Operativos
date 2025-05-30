@@ -123,7 +123,7 @@ int load_config(const char* filename, Canvas* canvas, Object  ***arr, int *size)
         for(int j =0;j<canvas->width; j++){
             
             pthread_mutex_init(&canvas->locks[i][j], NULL);
-            canvas->canvas_drawing[i][j]= '.';
+            canvas->canvas_drawing[i][j]= ' ';
 
         }
     }
@@ -442,10 +442,10 @@ void send_print(Canvas *canvas){
 int reliable_send(int socket, const char* data, size_t len) {
     size_t total_sent = 0;
     int attempts = 0;
-    const int max_attempts = 3;
+    const int max_attempts = 5;
     
     while(total_sent < len && attempts < max_attempts) {
-        int sent = send(socket, data + total_sent, len - total_sent, MSG_DONTWAIT);
+        int sent = send(socket, data + total_sent, len - total_sent, 0);
         
         if(sent < 0) {
             if(errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -455,9 +455,11 @@ int reliable_send(int socket, const char* data, size_t len) {
                 continue;
             } else {
                 // Error real de conexión
+                printf("NANI?");
                 return -1;
             }
         } else if(sent == 0) {
+            printf("EH?");
             // Conexión cerrada
             return -1;
         }
@@ -471,7 +473,7 @@ int reliable_send(int socket, const char* data, size_t len) {
 
 // CORRECCIÓN: Envío por lotes para reducir overhead
 void send_print_patched(Canvas *canvas) {
-    pthread_mutex_lock(&canvas_send_mutex);
+    //pthread_mutex_lock(&canvas_send_mutex);
     
     // Crear buffer por monitor para envío en lotes
     char monitor_buffers[MAX_MONITORS][MAX_MONITORS][4096];
@@ -516,6 +518,7 @@ void send_print_patched(Canvas *canvas) {
                                 buffer_lengths[monitor_row][monitor_col]) < 0) {
                     printf("Error enviando lote a monitor %d\n", monitor->id);
                 }
+                //printf("[%d %d]",monitor->socket, buffer_lengths[monitor_row][monitor_col]);
                 
                 // Resetear buffer y agregar comando actual
                 strcpy(monitor_buffers[monitor_row][monitor_col], command);
@@ -532,13 +535,13 @@ void send_print_patched(Canvas *canvas) {
                 if(reliable_send(monitor->socket, 
                                 monitor_buffers[mi][mj], 
                                 buffer_lengths[mi][mj]) < 0) {
-                    printf("Error enviando lote final a monitor %d\n", monitor->id);
+                    printf("Error enviando lote final a monitor %d\n", monitor->socket);
                 }
             }
         }
     }
     
-    pthread_mutex_unlock(&canvas_send_mutex);
+    //pthread_mutex_unlock(&canvas_send_mutex);
 }
 
 void print_object_info(Object *obj){
@@ -579,7 +582,7 @@ void move_object_patched(Object* obj, Canvas* canvas) {
         draw_object(obj, canvas);
         
         pthread_mutex_unlock(&canvas_send_mutex);
-        
+        update_locks(step_x, step_y, obj, canvas);
         // Enviar frame completo en lotes
         send_print_patched(canvas);
         
@@ -588,6 +591,9 @@ void move_object_patched(Object* obj, Canvas* canvas) {
         // Frame rate control - 20 FPS
         usleep(50000); // 50ms = 20 FPS
     }
+    release_locks(obj, canvas);
+    erase_object(obj, canvas);
+    
 }
 
 
@@ -678,7 +684,7 @@ void end_animation(Canvas * canvas){
     for(int i =0; i<canvas->monitors_height;i++){
         for(int j=0; j<canvas->monitors_width;j++){
             if(canvas->monitors[i][j] != NULL){
-                printf("END; %d %d %d\n", canvas->monitors[i][j]->socket, i, j);
+                printf("END; %d %d %d %d\n", canvas->monitors[i][j]->socket, i, j, canvas->monitors[i][j]->id);
                 send(canvas->monitors[i][j]->socket, "END;", 6,0);
             }            
         }
