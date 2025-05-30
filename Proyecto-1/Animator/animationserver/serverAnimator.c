@@ -113,7 +113,7 @@ int load_config(const char* filename, Canvas* canvas, Object  ***arr, int *size)
 
     canvas->locks = malloc(canvas->height * sizeof(pthread_mutex_t*));
 
-    char empty = ' ';
+
     //inicia el arreglo de mutex del canvas
     for(int i =0;i<canvas->height; i++){
         canvas->locks[i] = malloc(canvas->width * sizeof(pthread_mutex_t));
@@ -121,7 +121,7 @@ int load_config(const char* filename, Canvas* canvas, Object  ***arr, int *size)
         for(int j =0;j<canvas->width; j++){
             
             pthread_mutex_init(&canvas->locks[i][j], NULL);
-            canvas->canvas_drawing[i][j]= ' ';
+            canvas->canvas_drawing[i][j]= '.';
 
         }
     }
@@ -133,14 +133,16 @@ int load_config(const char* filename, Canvas* canvas, Object  ***arr, int *size)
     fgets(line, 22, fp);
     fgets(line, 22, fp);
     fgets(line, 14, fp);
-    amount_monitors = atoi(line);
+    amount_monitors = atoi(line); // cantidad de monitores en total
     canvas->amount_monitors = amount_monitors;
+
     fgets(line, 14, fp);
-    heigth_monitors = atoi(line);
-    canvas->monitors_height = heigth_monitors;
+    heigth_monitors = atoi(line);//cantidad de monitores en vertical posibles
+    canvas->monitors_height = heigth_monitors;//cantidad de monitores en vertical posibles
+    
     fgets(line, 14, fp);
-    width_monitors = atoi(line);
-    canvas->monitors_width = width_monitors;
+    width_monitors = atoi(line);//cantidad de monitores en horizontal posibles
+    canvas->monitors_width = width_monitors;//cantidad de monitores en horizontal posibles
 
     //printf("\n|%d %d %d|\n", canvas->amount_monitors ,canvas->monitors_height,canvas->monitors_width);
     //Cantidad de objetos para la animacion
@@ -424,7 +426,8 @@ void send_print(Canvas *canvas){
             Monitor *monitor =canvas->monitors[monitor_y][monitor_x];
 
             if(canvas->monitors[monitor_y][monitor_x] != NULL){
-                nanosleep(&ts, NULL);
+                //nanosleep(&ts, NULL);
+                usleep(3000);
                 send(monitor->socket, output, sizeof(output),0);
             }
         }

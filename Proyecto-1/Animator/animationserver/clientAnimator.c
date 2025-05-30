@@ -13,12 +13,6 @@
 #define PORT 8080
 #define MAX_DRAWING_SIZE 900
 
-void process_instruction(char *input){
-    
-    
-    
-}
-
 void animation_cicle(int client_fd){
 
     int valread;
@@ -27,22 +21,17 @@ void animation_cicle(int client_fd){
     char input_acumulator[128] = {0};
     printf("\033[2J");
     
-
-    //printf("\nlisten\n");
     int flag =1;
     while(1){
         
         valread = recv(client_fd, input_buffer, sizeof(input_buffer)-1,0); 
     
-        //printf("%d", valread);
         if(valread<=0){
             if(valread<0){
-            //flag=0;
                 perror("error al leer");
             }
             break;
         }
-        //printf("\n%s\n", input_buffer);
         input_buffer[valread] ='\0';
         
 
@@ -52,11 +41,6 @@ void animation_cicle(int client_fd){
 
         while((end= strchr(start, ';'))!=NULL){
             *end = '\0';
-            // if(strcmp(start,"END;") == 0){
-            //     flag=0;
-            //     break;
-            // }
-            //process_instruction(start);
             int x,y;
             char c;
 
