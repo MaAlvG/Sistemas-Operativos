@@ -12,8 +12,8 @@
 #define PORT 8080
 #define MAX_OBJECT_SIZE 30
 #define MAX_MONITORS 6
-#define MAX_MONITOR_HEIGHT 31;
-#define MAX_MONITOR_WIDTH 128;
+#define MAX_MONITOR_HEIGHT 31
+#define MAX_MONITOR_WIDTH 128
 
 int counter=0;
 
