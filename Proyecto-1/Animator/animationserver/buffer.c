@@ -104,7 +104,7 @@ void send_print_batched(Canvas *canvas) {
 }
 
 // CORRECCIÓN: Move object optimizado
-void move_object(Object* obj, Canvas* canvas) {
+void move_object_patched(Object* obj, Canvas* canvas) {
     int move_flag = 1;
     
     while(move_flag) {

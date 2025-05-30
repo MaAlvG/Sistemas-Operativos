@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 #include <pthread.h>
 #include <sys/stat.h>
+#include <errno.h>
 
 #define MAX_CANVAS_SIZE 1001
 #define PORT 8080
@@ -54,6 +55,7 @@ typedef struct{
     Canvas* canvas;
 } animation_thread_args;
 
+pthread_mutex_t canvas_send_mutex = PTHREAD_MUTEX_INITIALIZER;
 struct timespec ts;
 /*identificador, x de inicio, y de inicio, x final, y final, tiempo de inicio, tiempo de final,*/
 Object *init_object(char* id, int x, int y, int dx, int dy, int sT, int eT, int rot){
@@ -430,8 +432,113 @@ void send_print(Canvas *canvas){
                 usleep(3000);
                 send(monitor->socket, output, sizeof(output),0);
             }
+            printf("\033[%d;%dH%c",i,j,canvas->canvas_drawing[i][j]);
+                fflush(stdout);
         }
     }
+}
+
+// Función para envío confiable con reintentos
+int reliable_send(int socket, const char* data, size_t len) {
+    size_t total_sent = 0;
+    int attempts = 0;
+    const int max_attempts = 3;
+    
+    while(total_sent < len && attempts < max_attempts) {
+        int sent = send(socket, data + total_sent, len - total_sent, MSG_DONTWAIT);
+        
+        if(sent < 0) {
+            if(errno == EAGAIN || errno == EWOULDBLOCK) {
+                // Buffer lleno, esperar un poco
+                usleep(1000); // 1ms
+                attempts++;
+                continue;
+            } else {
+                // Error real de conexión
+                return -1;
+            }
+        } else if(sent == 0) {
+            // Conexión cerrada
+            return -1;
+        }
+        
+        total_sent += sent;
+        attempts = 0; // Reset attempts on successful send
+    }
+    
+    return (total_sent == len) ? 0 : -1;
+}
+
+// CORRECCIÓN: Envío por lotes para reducir overhead
+void send_print_patched(Canvas *canvas) {
+    pthread_mutex_lock(&canvas_send_mutex);
+    
+    // Crear buffer por monitor para envío en lotes
+    char monitor_buffers[MAX_MONITORS][MAX_MONITORS][4096];
+    int buffer_lengths[MAX_MONITORS][MAX_MONITORS];
+    
+    // Inicializar buffers
+    for(int mi = 0; mi < canvas->monitors_height; mi++) {
+        for(int mj = 0; mj < canvas->monitors_width; mj++) {
+            monitor_buffers[mi][mj][0] = '\0';
+            buffer_lengths[mi][mj] = 0;
+        }
+    }
+    
+    // Construir lotes de comandos por monitor
+    for(int i = 0; i < canvas->height; i++) {
+        for(int j = 0; j < canvas->width; j++) {
+            int monitor_row = i / MAX_MONITOR_HEIGHT;
+            int monitor_col = j / MAX_MONITOR_WIDTH;
+            
+            if(monitor_row >= canvas->monitors_height || 
+               monitor_col >= canvas->monitors_width ||
+               canvas->monitors[monitor_row][monitor_col] == NULL) {
+                continue;
+            }
+            
+            int local_row = (i % MAX_MONITOR_HEIGHT) + 1;
+            int local_col = (j % MAX_MONITOR_WIDTH) + 1;
+            
+            char command[32];
+            int cmd_len = sprintf(command, "PRINT:%d,%d,%c;", 
+                                local_row, local_col, canvas->canvas_drawing[i][j]);
+            
+            // Verificar espacio en buffer
+            if(buffer_lengths[monitor_row][monitor_col] + cmd_len < 4000) {
+                strcat(monitor_buffers[monitor_row][monitor_col], command);
+                buffer_lengths[monitor_row][monitor_col] += cmd_len;
+            } else {
+                // Buffer lleno, enviar y resetear
+                Monitor *monitor = canvas->monitors[monitor_row][monitor_col];
+                if(reliable_send(monitor->socket, 
+                                monitor_buffers[monitor_row][monitor_col], 
+                                buffer_lengths[monitor_row][monitor_col]) < 0) {
+                    printf("Error enviando lote a monitor %d\n", monitor->id);
+                }
+                
+                // Resetear buffer y agregar comando actual
+                strcpy(monitor_buffers[monitor_row][monitor_col], command);
+                buffer_lengths[monitor_row][monitor_col] = cmd_len;
+            }
+        }
+    }
+    
+    // Enviar buffers restantes
+    for(int mi = 0; mi < canvas->monitors_height; mi++) {
+        for(int mj = 0; mj < canvas->monitors_width; mj++) {
+            if(canvas->monitors[mi][mj] != NULL && buffer_lengths[mi][mj] > 0) {
+                Monitor *monitor = canvas->monitors[mi][mj];
+                if(reliable_send(monitor->socket, 
+                                monitor_buffers[mi][mj], 
+                                buffer_lengths[mi][mj]) < 0) {
+                    printf("Error enviando lote final a monitor %d\n", monitor->id);
+                }
+            }
+        }
+    }
+    
+    pthread_mutex_unlock(&canvas_send_mutex);
 }
 
 void print_object_info(Object *obj){
@@ -444,6 +551,45 @@ void print_object_info(Object *obj){
     printf("%d\n",obj->x);
     printf("%d\n",obj->y);
 }
+
+// CORRECCIÓN: Move object optimizado
+void move_object_patched(Object* obj, Canvas* canvas) {
+    int move_flag = 1;
+    
+    while(move_flag) {
+        int step_x = 0, step_y = 0;
+
+        // Calcular paso
+        if(obj->destined_x > obj->x) step_x = 1;
+        else if(obj->destined_x < obj->x) step_x = -1;
+        
+        if(obj->destined_y > obj->y) step_y = 1;
+        else if(obj->destined_y < obj->y) step_y = -1;
+
+        // Modificar canvas con protección
+        pthread_mutex_lock(&canvas_send_mutex);
+        
+        erase_object(obj, canvas);
+        
+        if(step_x != 0) obj->x += step_x;
+        if(step_y != 0) obj->y += step_y;
+        
+        if(obj->rotations > 0) rotate(obj, obj->rotations);
+        
+        draw_object(obj, canvas);
+        
+        pthread_mutex_unlock(&canvas_send_mutex);
+        
+        // Enviar frame completo en lotes
+        send_print_patched(canvas);
+        
+        move_flag = (obj->destined_x != obj->x) || (obj->destined_y != obj->y);
+        
+        // Frame rate control - 20 FPS
+        usleep(50000); // 50ms = 20 FPS
+    }
+}
+
 
 void move_object(Object* obj, Canvas* canvas){
     int move_flag  = 1;
@@ -521,7 +667,7 @@ int connect_monitors(int *socket, Canvas *canvas){
 
 void* handle_animation(void* arg){
     animation_thread_args* args =(animation_thread_args* )arg;
-    move_object(args->objeto, args->canvas);
+    move_object_patched(args->objeto, args->canvas);
 
     //printf("animando \n");
 
