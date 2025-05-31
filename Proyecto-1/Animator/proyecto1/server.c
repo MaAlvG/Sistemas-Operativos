@@ -50,6 +50,11 @@ typedef struct{
     int movements ;             // Si está activo o esperando
 } Object;
 
+typedef struct {
+    Object** obj_list;
+    Canvas* canvas;
+    int num_objects;
+} checker_thread_args;
 
 typedef struct{
     Object* objeto;
@@ -59,19 +64,16 @@ typedef struct{
 pthread_mutex_t canvas_send_mutex = PTHREAD_MUTEX_INITIALIZER;
 struct timespec ts;
 
-double tiempo_animacion_inicio;
+double program_starting_time;
 
 // Función para obtener el tiempo actual en segundos
 double get_current_time() {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
+    
     return ts.tv_sec + ts.tv_nsec / 1000000000.0;
 }
 
-// Inicializar el sistema de animación
-void inicializar_animacion() {
-    
-}
 
 /*identificador, x de inicio, y de inicio, x final, y final, tiempo de inicio, tiempo de final,*/
 Object *init_object(char* id, int x, int y, int dx, int dy, double sT, double eT, int rot){
@@ -162,7 +164,6 @@ int load_config(const char* filename, Canvas* canvas, Object  ***arr, int *size)
     width_monitors = atoi(line);//cantidad de monitores en horizontal posibles
     canvas->monitors_width = width_monitors;//cantidad de monitores en horizontal posibles
 
-    //printf("\n|%d %d %d|\n", canvas->amount_monitors ,canvas->monitors_height,canvas->monitors_width);
     //Cantidad de objetos para la animacion
     int num_objects;
     fgets(line, 2, fp);
@@ -170,7 +171,6 @@ int load_config(const char* filename, Canvas* canvas, Object  ***arr, int *size)
     fgets(line, 5, fp);
     
     num_objects = atoi(line);
-    //printf("[%d]\n", num_objects);
     //ciclo para obtener la informacion de cada objeto
     for(int i =0; i< num_objects; i++){
         char obj_id[20];
@@ -210,13 +210,14 @@ int load_config(const char* filename, Canvas* canvas, Object  ***arr, int *size)
         fgets(line, 5, fp);
         
         start_time = atof(line);
-        
+        start_time = start_time+ program_starting_time;
         fgets(line, 2, fp);
         fgets(line, 14, fp);
         fgets(line, 5, fp);
         
         end_time = atof(line);
-       
+        end_time = end_time + program_starting_time;
+
         fgets(line, 2, fp);
         fgets(line, 14, fp);
 
@@ -301,13 +302,12 @@ void add_monitor(Monitor *monitor,Canvas *canvas){
             }
         }   
     }
-
-    //printf("|%d %d|", canvas->monitors[0][0]->id,canvas->monitors[0][0]->socket);
 }
 
 void update_locks(int step_x,int step_y,Object *obj, Canvas* canvas){
     int start_x = obj->x;
     int start_y = obj->y;
+    if(!obj->active) return;
     
     for (int i = 0; i < obj->height; i++){
         for (int j = 0; j < obj->width; j++){
@@ -315,7 +315,6 @@ void update_locks(int step_x,int step_y,Object *obj, Canvas* canvas){
             int flag_y = i+step_y < 0||i+step_y > obj->height-1;
             int flag_x = j+step_x < 0||j+step_x > obj->width-1;
             
-            //printf("\nlocks A, %d %d %d %d\n",i,j, flag_y, flag_x);
             if(flag_x&&!flag_y){
                 pthread_mutex_lock(&canvas->locks[start_y + i][start_x + j+step_x]);
 
@@ -425,35 +424,6 @@ int rotate(Object* obj, int new_angle){
     return 0;
 }
 
-void send_print(Canvas *canvas){
-    int monitor_x_picker=0;
-    int monitor_y_picker=0;
-    int monitor_y;
-    int monitor_x;
-    char output[32];
-    for(int i=0; i<canvas->height;i++){
-        for(int j =0;j<canvas->width;j++){
-
-            monitor_y = MAX_MONITOR_HEIGHT;
-            monitor_x = MAX_MONITOR_WIDTH;
-            
-            monitor_y= i/monitor_y;
-            monitor_x= j/monitor_x;
-
-            sprintf(output, "PRINT:%d,%d,%c;",i,j,canvas->canvas_drawing[i][j]);
-            Monitor *monitor =canvas->monitors[monitor_y][monitor_x];
-
-            if(canvas->monitors[monitor_y][monitor_x] != NULL){
-                //nanosleep(&ts, NULL);
-                usleep(3000);
-                send(monitor->socket, output, sizeof(output),0);
-            }
-            printf("\033[%d;%dH%c",i,j,canvas->canvas_drawing[i][j]);
-                fflush(stdout);
-        }
-    }
-}
-
 // Función para envío confiable con reintentos
 int reliable_send(int socket, const char* data, size_t len) {
     size_t total_sent = 0;
@@ -481,15 +451,14 @@ int reliable_send(int socket, const char* data, size_t len) {
         }
         
         total_sent += sent;
-        attempts = 0; // Reset attempts on successful send
+        attempts = 0; // Reiniciar los intentos
     }
     
     return (total_sent == len) ? 0 : -1;
 }
 
-// CORRECCIÓN: Envío por lotes para reducir overhead
-void send_print_patched(Canvas *canvas) {
-    //pthread_mutex_lock(&canvas_send_mutex);
+// Envío del canvas por lotes 
+void send_print(Canvas *canvas) {
     
     // Crear buffer por monitor para envío en lotes
     char monitor_buffers[MAX_MONITORS][MAX_MONITORS][4096];
@@ -534,7 +503,6 @@ void send_print_patched(Canvas *canvas) {
                                 buffer_lengths[monitor_row][monitor_col]) < 0) {
                     printf("Error enviando lote a monitor %d\n", monitor->id);
                 }
-                //printf("[%d %d]",monitor->socket, buffer_lengths[monitor_row][monitor_col]);
                 
                 // Resetear buffer y agregar comando actual
                 strcpy(monitor_buffers[monitor_row][monitor_col], command);
@@ -557,7 +525,6 @@ void send_print_patched(Canvas *canvas) {
         }
     }
     
-    //pthread_mutex_unlock(&canvas_send_mutex);
 }
 
 void explode(Object *obj){
@@ -572,34 +539,34 @@ void explode(Object *obj){
         }
     }
 
-    obj[half][identation]= "B";
-    obj[half][identation+1]= "O";
-    obj[half][identation+2]= "O";
-    obj[half][identation+3]= "M";
+    obj->drawing[half][identation]= 'B';
+    obj->drawing[half][identation+1]= 'O';
+    obj->drawing[half][identation+2]= 'O';
+    obj->drawing[half][identation+3]= 'M';
 }
 
-void check_explode(Objeto objetos[], int num_objetos) {
+void check_explode(Object *obj, Canvas *canvas) {
     double current_time = get_current_time();
-    double tiempo_transcurrido = current_time - tiempo_animacion_inicio;
+    
+    if (current_time > obj->end_time && obj->active) {
+        printf("BOOM! Objeto %s explotó en posición (%d, %d)\n", obj->id, obj->x, obj->y);
+        
+        // Crear explosión visual
+        explode(obj);
 
-    if (tiempo_transcurrido > obj->end_time && obj->active) {
-            //printf("BOOM! Objeto %d explotó en posición (%d, %d)\n", obj->id, obj->x, obj->y);
-            
-            // Crear explosión visual
-            explode(obj);
-            
-            // Marcar como explotado e inactivo
-            obj->active = 0;
-        }
+        // Marcar como inactivo y liberar mutex
+        release_locks(obj, canvas);        
+        obj->active = 0;
+    }
 }
-// CORRECCIÓN: Move object optimizado
-void move_object_patched(Object* obj, Canvas* canvas) {
+
+void move_object(Object* obj, Canvas* canvas) {
     int move_flag = 1;
     
     double current_time = get_current_time();
     double start_time = obj->start_time;
-    while(start_time != tiempo){
-        usleep(5000);
+    while(start_time >= current_time){
+        usleep(50000);
         current_time = get_current_time();
     }
 
@@ -614,7 +581,7 @@ void move_object_patched(Object* obj, Canvas* canvas) {
         else if(obj->destined_y < obj->y) step_y = -1;
 
         // Modificar canvas con protección
-        pthread_mutex_lock(&canvas_send_mutex);
+        pthread_mutex_trylock(&canvas_send_mutex);
         
         erase_object(obj, canvas);
         
@@ -628,15 +595,15 @@ void move_object_patched(Object* obj, Canvas* canvas) {
         pthread_mutex_unlock(&canvas_send_mutex);
         update_locks(step_x, step_y, obj, canvas);
         // Enviar frame completo en lotes
-        send_print_patched(canvas);
+        send_print(canvas);
         
-        object->active = (obj->destined_x != obj->x) || (obj->destined_y != obj->y);
+        obj->active = (obj->destined_x != obj->x) || (obj->destined_y != obj->y);
         
-        // Frame rate control - 20 FPS
-        usleep(50000); // 50ms = 20 FPS
+
+        usleep(70000);
     }
     release_locks(obj, canvas);
-    //erase_object(obj, canvas);
+    erase_object(obj, canvas);
     
 }
 
@@ -672,10 +639,28 @@ int connect_monitors(int *socket, Canvas *canvas){
 
 void* handle_animation(void* arg){
     animation_thread_args* args =(animation_thread_args* )arg;
-    move_object_patched(args->objeto, args->canvas);
+    move_object(args->objeto, args->canvas);
 
-    //printf("animando \n");
+    return NULL;
+}
 
+void* handle_checker(void* arg){
+    int flag = 1;
+    checker_thread_args* args =(checker_thread_args* )arg;
+    Object ** obj_list = args->obj_list;
+    Canvas* canvas = args->canvas;
+    int num_objects = args->num_objects;
+
+    while(flag){
+        flag =0;
+        for(int i =0; i < num_objects;i++){
+            check_explode(obj_list[i], canvas);
+            flag = flag || obj_list[i]->active;
+        }
+
+    }
+    sleep(1);         
+    
     return NULL;
 }
 
@@ -683,7 +668,6 @@ void end_animation(Canvas * canvas){
     for(int i =0; i<canvas->monitors_height;i++){
         for(int j=0; j<canvas->monitors_width;j++){
             if(canvas->monitors[i][j] != NULL){
-                printf("END; %d %d %d %d\n", canvas->monitors[i][j]->socket, i, j, canvas->monitors[i][j]->id);
                 send(canvas->monitors[i][j]->socket, "END;", 6,0);
             }            
         }
@@ -708,11 +692,13 @@ int main(int argc, char *argv[]) {
             exit(EXIT_FAILURE);
         }
     }
-    Canvas* canvas = calloc(1, sizeof(Canvas));
 
+    program_starting_time = get_current_time();
+    Canvas* canvas = calloc(1, sizeof(Canvas));
     Object** obj_list = NULL;
     int num_objects=0;
     load_config(config_file, canvas, &obj_list, &num_objects);
+
 
     int server_fd;
     struct sockaddr_in address;
@@ -742,9 +728,6 @@ int main(int argc, char *argv[]) {
 
     printf("Servidor escuchando en el puerto %d...\n", PORT);
 
-
-    //pthread_mutex_init(&conection_mutex, NULL);
-    
     while (counter < canvas->amount_monitors) {
         int* new_socket = malloc(sizeof(int));
         *new_socket = accept(server_fd, (struct sockaddr*)&address, &addrlen);
@@ -764,10 +747,18 @@ int main(int argc, char *argv[]) {
     pthread_t threads[num_objects];
     animation_thread_args args[num_objects];
     sleep(1);
-    tiempo_animacion_inicio = get_current_time();
+    
+    pthread_t checker;
+    checker_thread_args arguments;
+
+    arguments.obj_list = obj_list;
+    arguments.canvas = canvas;
+    arguments.num_objects = num_objects;
+
+    pthread_create(&checker,NULL,handle_checker, &arguments);
+
     for(int i=0;i< num_objects;i++){
 
-        //print_object_info(obj_list[i]);
         args[i].canvas = canvas;
         args[i].objeto = obj_list[i];
         pthread_create(&threads[i],NULL,handle_animation, &args[i]);
@@ -777,9 +768,13 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < num_objects; i++) {
         pthread_join(threads[i], NULL);
     }
-    //pthread_mutex_destroy(&conection_mutex);
+
+    pthread_join(checker, NULL);
+
+    printf("\n animacion terminada\n");
     sleep(1);
     end_animation(canvas);
     close(server_fd);
     return 0;
 }
+
