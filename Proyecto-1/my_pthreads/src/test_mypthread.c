@@ -53,6 +53,11 @@ void *detached_thread_function(void *arg) {
 void *scheduler_test_function(void *arg) {
     int id = *(int *)arg;
     printf("Thread %d está ejecutándose con política de scheduler %d\n", id, mythread_get_current_sched());
+    // Yield to allow scheduler change to take effect
+    mythread_yield();
+    printf("Thread %d ahora está ejecutándose con política de scheduler %d\n", id, mythread_get_current_sched());
+    printf("Thread %d terminando...\n", id);
+    mythread_exit();
     return NULL;
 }
 
@@ -116,8 +121,9 @@ int main() {
     // Prueba de mythread_chsched y diferentes schedulers
     printf("\nPrueba de diferentes schedulers...\n");
     mythread_attr_t attr_lottery = {MYTHREAD_SCHED_LOTTERY, 10, 0};
-    mythread_attr_t attr_rt = {MYTHREAD_SCHED_RT, 0, 1};
+    printf("Creando hilo con scheduler LOTTERY\n");
     mythread_create(&threads[5], &attr_lottery, scheduler_test_function, &ids[5]);
+    printf("Cambiando scheduler del hilo a RT\n");
     mythread_chsched(&threads[5], MYTHREAD_SCHED_RT);
     mythread_join(&threads[5]);
 

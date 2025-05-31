@@ -305,5 +305,5 @@ void mythread_init_main_thread(void) {
     main_thread.state = MYTHREAD_STATE_RUNNING;
     main_thread.id = 0;
     main_thread.attr = (mythread_attr_t){MYTHREAD_SCHED_RR, 0, 0};
-}    active_threads++; // Contar el hilo principal como activo
+    active_threads++; // Contar el hilo principal como activo
 }
