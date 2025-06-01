@@ -1,10 +1,10 @@
 full_canvas_size:
-2000
-1000
+31
+256
 
 monitor_disposition: cantidad,alto,ancho
 2
-2
+1
 2
 
 num_objects:
@@ -24,12 +24,12 @@ end_time:
 30
 
 initial_pos:
-20
-170
+10
+25
 
 end_pos:
-23
-200
+180
+12
 
 rotation:
 90
@@ -37,16 +37,16 @@ rotation:
 shape:
 6
   --  
-   -  
-===- +
-= /+++
-  /   
+  --  
+===-++
+==/+++
+  //  
   //  
 end_object_description;
 
 start_object_description:
 object_name:
-arrow
+arrowA
 
 object_type:
 sorteo 
@@ -58,12 +58,12 @@ end_time:
 30
 
 initial_pos:
-30
-40
+200
+0
 
 end_pos:
-31
-0
+33
+24
 
 rotation:
 270
@@ -80,7 +80,7 @@ end_object_description;
 
 start_object_description:
 object_name:
-arrow
+arrowB
 
 object_type:
 sorteo 
@@ -92,21 +92,21 @@ end_time:
 30
 
 initial_pos:
-3
-41
+0
+0
 
 end_pos:
-63
-20
+249
+18
 
 rotation:
 90
 
 shape:
 5
-  |  
- /|\ 
---+--
- ||| 
- ||| 
+  -  
+ --- 
+-----
+ --- 
+ --- 
 end_object_description;
