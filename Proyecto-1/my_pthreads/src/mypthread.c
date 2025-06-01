@@ -4,6 +4,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
+#include <linux/time.h>
 
 // Variables globales
 static mythread_t *current_thread = NULL;
