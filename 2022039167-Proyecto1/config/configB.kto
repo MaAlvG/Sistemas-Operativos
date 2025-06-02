@@ -1,0 +1,112 @@
+full_canvas_size:
+31
+256
+
+monitor_disposition: cantidad,alto,ancho
+2
+1
+2
+
+num_objects:
+3
+
+start_object_description:
+object_name:
+cross
+
+object_type:
+sorteo 
+
+start_time:
+20
+
+end_time:
+30
+
+initial_pos:
+10
+25
+
+end_pos:
+180
+12
+
+rotation:
+90
+
+shape:
+6
+  --  
+  --  
+===-++
+==/+++
+  //  
+  //  
+end_object_description;
+
+start_object_description:
+object_name:
+arrowA
+
+object_type:
+sorteo 
+
+start_time:
+20
+
+end_time:
+30
+
+initial_pos:
+200
+0
+
+end_pos:
+33
+24
+
+rotation:
+270
+
+shape:
+5
+  *  
+ *** 
+*****
+ *** 
+ *** 
+end_object_description;
+
+
+start_object_description:
+object_name:
+arrowB
+
+object_type:
+sorteo 
+
+start_time:
+20
+
+end_time:
+30
+
+initial_pos:
+0
+0
+
+end_pos:
+249
+18
+
+rotation:
+90
+
+shape:
+5
+  -  
+ --- 
+-----
+ --- 
+ --- 
+end_object_description;
