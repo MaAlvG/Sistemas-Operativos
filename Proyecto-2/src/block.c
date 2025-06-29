@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <time.h>
+#include <png.h>
 
 // Contexto global de bloques
 block_ctx_t block_ctx = {0};
@@ -86,11 +87,182 @@ void block_cleanup() {
     memset(&block_ctx, 0, sizeof(block_ctx));
 }
 
-// Obtener nombre de archivo para un bloque
+// Obtener nombre de archivo para un bloque (formato binario)
 static char* block_get_filename(uint32_t block_num) {
     static char filename[1024];
     snprintf(filename, sizeof(filename), "%s/block_%06u.dat", block_ctx.base_path, block_num);
     return filename;
+}
+
+// Obtener nombre de archivo para un bloque (formato PNG)
+static char* block_get_png_filename(uint32_t block_num) {
+    static char filename[1024];
+    snprintf(filename, sizeof(filename), "%s/block_%06u.png", block_ctx.base_path, block_num);
+    return filename;
+}
+
+// Guardar un bloque como imagen PNG (versión simplificada)
+static int block_save_as_png(uint32_t block_num, const uint8_t *data) {
+    // Primero, guardar el bloque en formato binario para verificación
+    char *filename = block_get_png_filename(block_num);
+    char bin_filename[256];
+    snprintf(bin_filename, sizeof(bin_filename), "%s.bin", filename);
+    
+    FILE *bin_fp = fopen(bin_filename, "wb");
+    if (bin_fp) {
+        fwrite(data, 1, BLOCK_SIZE, bin_fp);
+        fclose(bin_fp);
+        printf("DEBUG: Bloque binario guardado en %s\n", bin_filename);
+    }
+    
+    FILE *fp = fopen(filename, "wb");
+    if (!fp) {
+        perror("Error al abrir archivo PNG para escritura");
+        return -1;
+    }
+
+    // Inicializar estructuras PNG
+    png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    if (!png_ptr) {
+        fclose(fp);
+        return -1;
+    }
+
+    png_infop info_ptr = png_create_info_struct(png_ptr);
+    if (!info_ptr) {
+        png_destroy_write_struct(&png_ptr, NULL);
+        fclose(fp);
+        return -1;
+    }
+
+    if (setjmp(png_jmpbuf(png_ptr))) {
+        png_destroy_write_struct(&png_ptr, &info_ptr);
+        fclose(fp);
+        return -1;
+    }
+
+    png_init_io(png_ptr, fp);
+
+    // Configuración básica de la imagen
+    png_set_IHDR(png_ptr, info_ptr, 
+                1000, 1000,              // Ancho y alto
+                1,                       // 1 bit por píxel
+                PNG_COLOR_TYPE_GRAY,     // Escala de grises
+                PNG_INTERLACE_NONE,      // Sin entrelazado
+                PNG_COMPRESSION_TYPE_BASE, 
+                PNG_FILTER_TYPE_BASE);
+
+    // Escribir la cabecera
+    png_write_info(png_ptr, info_ptr);
+    
+    // Escribir los datos fila por fila
+    png_bytep row = (png_bytep)data;
+    for (int y = 0; y < 1000; y++) {
+        png_write_row(png_ptr, row + (y * 125));
+    }
+
+    // Finalizar
+    png_write_end(png_ptr, NULL);
+    png_destroy_write_struct(&png_ptr, &info_ptr);
+    fclose(fp);
+    
+    return 0;
+}
+
+// Cargar un bloque desde una imagen PNG (versión simplificada)
+static int block_load_from_png(uint32_t block_num, uint8_t *buffer) {
+    char *filename = block_get_png_filename(block_num);
+    char bin_filename[256];
+    
+    // Primero intentar cargar el archivo binario si existe
+    snprintf(bin_filename, sizeof(bin_filename), "%s.bin", filename);
+    printf("DEBUG: Intentando abrir archivo binario: %s\n", bin_filename);
+    FILE *bin_fp = fopen(bin_filename, "rb");
+    if (bin_fp) {
+        printf("DEBUG: Archivo binario abierto correctamente, leyendo...\n");
+        printf("DEBUG - Antes de fread: buffer=%p, BLOCK_SIZE=%u\n", (void*)buffer, BLOCK_SIZE);
+        
+        // Verificar que el buffer no sea NULL
+        if (buffer == NULL) {
+            printf("ERROR: El buffer de destino es NULL\n");
+            fclose(bin_fp);
+            return -1;
+        }
+        
+        size_t read = fread(buffer, 1, BLOCK_SIZE, bin_fp);
+        printf("DEBUG: Leídos %zu bytes de %u esperados\n", read, BLOCK_SIZE);
+        
+        if (ferror(bin_fp)) {
+            perror("Error al leer el archivo binario");
+            fclose(bin_fp);
+            return -1;
+        }
+        
+        fclose(bin_fp);
+        
+        if (read == BLOCK_SIZE) {
+            printf("DEBUG: Bloque binario cargado exitosamente\n");
+            return 0; // Éxito al cargar el binario
+        } else {
+            printf("ERROR: Tamaño de archivo incorrecto: %zu bytes (se esperaban %u)\n", read, BLOCK_SIZE);
+        }
+    } else {
+        printf("DEBUG: No se pudo abrir el archivo binario: %s\n", strerror(errno));
+    }
+    
+    // Si no hay binario o falla, intentar con PNG
+    FILE *fp = fopen(filename, "rb");
+    if (!fp) {
+        perror("Error al abrir archivo PNG para lectura");
+        return -1;
+    }
+
+    // Verificar firma PNG
+    png_byte header[8];
+    if (fread(header, 1, 8, fp) != 8 || png_sig_cmp(header, 0, 8)) {
+        fclose(fp);
+        fprintf(stderr, "El archivo no es un PNG válido\n");
+        return -1;
+    }
+
+    png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    if (!png_ptr) {
+        fclose(fp);
+        return -1;
+    }
+
+    png_infop info_ptr = png_create_info_struct(png_ptr);
+    if (!info_ptr) {
+        png_destroy_read_struct(&png_ptr, NULL, NULL);
+        fclose(fp);
+        return -1;
+    }
+
+    if (setjmp(png_jmpbuf(png_ptr))) {
+        png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
+        fclose(fp);
+        return -1;
+    }
+
+    png_init_io(png_ptr, fp);
+    png_set_sig_bytes(png_ptr, 8);
+    png_read_info(png_ptr, info_ptr);
+
+    // Configuración básica
+    png_set_packing(png_ptr);
+    png_set_packswap(png_ptr);
+    
+    // Leer los datos
+    png_bytep row = (png_bytep)buffer;
+    for (int y = 0; y < 1000; y++) {
+        png_read_row(png_ptr, row + (y * 125), NULL);
+    }
+
+    png_read_end(png_ptr, NULL);
+    png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
+    fclose(fp);
+    
+    return 0;
 }
 
 // Verificar si un bloque está libre
@@ -161,35 +333,29 @@ int block_read(uint32_t block_num, void *buffer) {
                 block_num, block_ctx.total_blocks - 1);
         return -1;
     }
-    
-    if (!buffer) {
-        fprintf(stderr, "Error: Puntero de buffer nulo\n");
-        return -1;
+
+    // Primero intentar leer el archivo PNG
+    if (block_load_from_png(block_num, buffer) == 0) {
+        return 0;  // Éxito al leer el PNG
     }
-    
+
+    // Si falla, intentar leer el archivo binario
     char *filename = block_get_filename(block_num);
-    if (!filename) {
-        fprintf(stderr, "Error: No se pudo obtener el nombre de archivo para el bloque %u\n", block_num);
+    FILE *f = fopen(filename, "rb");
+    if (!f) {
+        perror("Error al abrir archivo de bloque para lectura");
         return -1;
     }
-    
-    printf("Leyendo del bloque %u en %s\n", block_num, filename);
-    
-    int fd = open(filename, O_RDONLY);
-    if (fd < 0) {
-        perror("Error al abrir el archivo de bloque");
+
+    size_t read = fread(buffer, 1, BLOCK_SIZE, f);
+    fclose(f);
+
+    if (read != BLOCK_SIZE) {
+        fprintf(stderr, "Error: No se pudo leer el bloque completo (%zu/%d bytes)\n", 
+                read, BLOCK_SIZE);
         return -1;
     }
-    
-    ssize_t read_bytes = read(fd, buffer, BLOCK_SIZE);
-    close(fd);
-    
-    if (read_bytes != BLOCK_SIZE) {
-        fprintf(stderr, "Error al leer el bloque completo (leídos %zd bytes)\n", read_bytes);
-        return -1;
-    }
-    
-    printf("Bloque %u leído exitosamente\n", block_num);
+
     return 0;
 }
 
@@ -197,43 +363,40 @@ int block_read(uint32_t block_num, void *buffer) {
 int block_write(uint32_t block_num, const void *data) {
     if (block_num >= block_ctx.total_blocks) {
         fprintf(stderr, "Error: Número de bloque %u fuera de rango (máx %zu)\n", 
-                block_num, block_ctx.total_blocks - 1);
+                block_num, block_ctx.total_blocks);
         return -1;
     }
-    
-    if (!data) {
-        fprintf(stderr, "Error: Null data pointer\n");
-        return -1;
-    }
-    
+
+    // Guardar en formato binario
     char *filename = block_get_filename(block_num);
-    if (!filename) {
-        fprintf(stderr, "Error: Failed to get filename for block %u\n", block_num);
+    FILE *f = fopen(filename, "wb");
+    if (!f) {
+        perror("Error al abrir archivo de bloque para escritura");
         return -1;
     }
-    
-    printf("Writing to block %u at %s\n", block_num, filename);
-    
-    // Ensure directory exists
-    if (mkdir(block_ctx.base_path, 0755) < 0 && errno != EEXIST) {
-        perror("Failed to create directory");
-        return -1;
-    }
-    
-    int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-    if (fd < 0) {
-        perror("Failed to open block file");
-        return -1;
-    }
-    
-    ssize_t written = write(fd, data, BLOCK_SIZE);
-    close(fd);
-    
+
+    size_t written = fwrite(data, 1, BLOCK_SIZE, f);
+    fclose(f);
+
     if (written != BLOCK_SIZE) {
-        fprintf(stderr, "Failed to write full block (wrote %zd bytes)\n", written);
+        fprintf(stderr, "Error: No se pudo escribir el bloque completo (%zu/%d bytes)\n", 
+                written, BLOCK_SIZE);
         return -1;
     }
-    
-    printf("Successfully wrote block %u\n", block_num);
+
+    // Guardar también como PNG
+    if (block_save_as_png(block_num, data) != 0) {
+        fprintf(stderr, "Advertencia: No se pudo guardar el bloque como PNG\n");
+        // No es un error fatal, continuamos
+    }
+
+    // Actualizar el mapa de bits si es un bloque nuevo
+    if (block_is_free(block_num)) {
+        block_mark_used(block_num);
+        block_ctx.superblock.free_blocks--;
+        block_ctx.free_blocks--;
+        time(&block_ctx.superblock.modified);
+    }
+
     return 0;
 }
