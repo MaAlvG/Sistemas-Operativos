@@ -1,123 +1,214 @@
+#define _POSIX_C_SOURCE 200809L  // Para struct timespec
 #define FUSE_USE_VERSION 31
 
-#include <fuse.h>
+#include <fuse3/fuse.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <stdlib.h>
+#include <stddef.h>
+#include <assert.h>
+#include <sys/stat.h>   // Para S_IFDIR, S_IFREG, etc.
+#include <sys/types.h>  // Para mode_t
+#include <time.h>       // Para time()
 #include <unistd.h>
-#include <sys/stat.h>
-#include <dirent.h>
-#include <time.h>
-#include <stdint.h>
-#include <png.h>
+#include <stdlib.h>  // Para realpath, free
+#include <limits.h>  // Para PATH_MAX
+#include "../include/bwfs.h"
 
-#define BWFS_BLOCK_SIZE 1000000  // 1000x1000 pixels
-#define BWFS_MAX_FILENAME 255
-#define BWFS_MAX_FILES 1000
-#define BWFS_SIGNATURE "BWFS"
-#define BWFS_VERSION 1
+// Contexto global
+static struct {
+    const char *root_dir;
+    bwfs_superblock_t superblock;
+} bwfs_data;
 
-// Estructuras del sistema de archivos
-typedef struct {
-    char signature[4];
-    uint32_t version;
-    uint32_t block_size;
-    uint32_t total_blocks;
-    uint32_t free_blocks;
-    uint32_t inode_count;
-    uint32_t root_inode;
-    time_t created;
-    time_t modified;
-} __attribute__((packed)) bwfs_superblock_t;
+// Obtener atributos de un archivo o directorio
+static int bwfs_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi) {
+    (void) fi;  // No usado por ahora
+    int res = 0;
+    
+    // Inicializar la estructura stat con ceros
+    memset(stbuf, 0, sizeof(struct stat));
+    
+    // Establecer el UID y GID del usuario actual
+    stbuf->st_uid = getuid();
+    stbuf->st_gid = getgid();
+    
+    // Establecer la hora de último acceso, modificación y cambio
+    time_t now = time(NULL);
+    stbuf->st_atime = now;  // Tiempo de último acceso
+    stbuf->st_mtime = now;  // Tiempo de última modificación
+    stbuf->st_ctime = now;  // Tiempo de último cambio de estado
+    
+    if (strcmp(path, "/") == 0) {
+        // Es el directorio raíz
+        stbuf->st_mode = S_IFDIR | 0755;
+        stbuf->st_nlink = 2;  // Por el . y ..
+        stbuf->st_size = 4096; // Tamaño típico de un directorio
+    } else if (strcmp(path, "/hola.txt") == 0) {
+        // Es el archivo hola.txt
+        stbuf->st_mode = S_IFREG | 0644;
+        stbuf->st_nlink = 1;
+        stbuf->st_size = strlen("Hola, BWFS!\n");
+    } else {
+        // Archivo no encontrado
+        res = -ENOENT;
+    }
+    
+    return res;
+}
 
-typedef struct {
-    uint32_t inode_num;
-    uint32_t type;  // 0=file, 1=directory
-    uint32_t size;
-    uint32_t blocks[16];  // Bloques directos
-    uint32_t indirect_block;
-    time_t atime;
-    time_t mtime;
-    time_t ctime;
-    uint32_t links;
-    uint32_t uid;
-    uint32_t gid;
-    uint32_t mode;
-} __attribute__((packed)) bwfs_inode_t;
-
-typedef struct {
-    uint32_t inode;
-    char name[BWFS_MAX_FILENAME];
-    uint8_t type;
-} __attribute__((packed)) bwfs_dirent_t;
-
-typedef struct {
-    uint32_t next_free;
-} __attribute__((packed)) bwfs_free_block_t;
-
-// Variables globales
-static char *bwfs_folder = NULL;
-static bwfs_superblock_t superblock;
-static bwfs_inode_t *inode_table = NULL;
-static uint32_t *block_bitmap = NULL;
-
-// Funciones utilitarias para manejo de imágenes PNG
-int write_png_block(const char *filename, uint8_t *data, int width, int height);
-int read_png_block(const char *filename, uint8_t *data, int *width, int *height);
-
-// Funciones de manejo de bloques
-char *get_block_filename(uint32_t block_num);
-int allocate_block();
-void free_block(uint32_t block_num);
-int write_block(uint32_t block_num, uint8_t *data, size_t size);
-int read_block(uint32_t block_num, uint8_t *data, size_t size);
-
-// Funciones de manejo de inodos
-uint32_t allocate_inode();
-void free_inode(uint32_t inode_num);
-
-// Funciones FUSE
-static int bwfs_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi);
+// Leer directorio
 static int bwfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
-                        off_t offset, struct fuse_file_info *fi, enum fuse_readdir_flags flags);
-static int bwfs_create(const char *path, mode_t mode, struct fuse_file_info *fi);
-static int bwfs_open(const char *path, struct fuse_file_info *fi);
-static int bwfs_read(const char *path, char *buf, size_t size, off_t offset,
-                     struct fuse_file_info *fi);
-static int bwfs_write(const char *path, const char *buf, size_t size, off_t offset,
-                      struct fuse_file_info *fi);
-static int bwfs_unlink(const char *path);
-static int bwfs_mkdir(const char *path, mode_t mode);
-static int bwfs_rmdir(const char *path);
-static int bwfs_statfs(const char *path, struct statvfs *stbuf);
-static int bwfs_rename(const char *from, const char *to, unsigned int flags);
-static int bwfs_access(const char *path, int mask);
-static int bwfs_flush(const char *path, struct fuse_file_info *fi);
-static int bwfs_fsync(const char *path, int isdatasync, struct fuse_file_info *fi);
-static off_t bwfs_lseek(const char *path, off_t off, int whence, struct fuse_file_info *fi);
+                        off_t offset, struct fuse_file_info *fi, enum fuse_readdir_flags flags) {
+    (void) offset;
+    (void) fi;
+    (void) flags;
 
+    if (strcmp(path, "/") != 0)
+        return -ENOENT;
+
+    filler(buf, ".", NULL, 0, 0);
+    filler(buf, "..", NULL, 0, 0);
+    // Aquí se pueden añadir más entradas de directorio
+
+    return 0;
+}
+
+// Crear un nuevo archivo
+static int bwfs_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
+    (void) fi;  // No usado por ahora
+    (void) mode; // No usado por ahora
+    
+    printf("Creando archivo: %s\n", path);
+    
+    // En una implementación real, aquí crearíamos un nuevo inodo y lo añadiríamos
+    // al directorio correspondiente
+    
+    // Retornamos 0 para indicar éxito
+    return 0;
+}
+
+// Escribir datos en un archivo
+static int bwfs_write(const char *path, const char *buf, size_t size, off_t offset,
+                     struct fuse_file_info *fi) {
+    (void) fi; // No usado por ahora
+    
+    printf("Escribiendo %zu bytes en %s en la posición %ld\n", size, path, (long)offset);
+    printf("Contenido: %.*s\n", (int)size, buf);
+    
+    // En una implementación real, aquí escribiríamos los datos en el archivo
+    // correspondiente al path
+    
+    // Retornamos el número de bytes escritos
+    return size;
+}
+
+// Abrir un archivo
+static int bwfs_open(const char *path, struct fuse_file_info *fi) {
+    printf("Abriendo archivo: %s\n", path);
+    
+    // En una implementación real, aquí verificaríamos los permisos y 
+    // configuraríamos el archivo si es necesario
+    
+    // Por ahora, simplemente retornamos éxito
+    return 0;
+}
+
+// Leer datos de un archivo
+static int bwfs_read(const char *path, char *buf, size_t size, off_t offset,
+                    struct fuse_file_info *fi) {
+    (void) fi; // No usado por ahora
+    
+    printf("Leyendo %zu bytes de %s desde la posición %ld\n", size, path, (long)offset);
+    
+    // Verificar qué archivo se está leyendo
+    if (strcmp(path, "/hola.txt") == 0) {
+        const char *contenido = "Hola, BWFS!\n";
+        size_t len = strlen(contenido);
+        
+        // Asegurarse de no leer más allá del final del archivo
+        if ((size_t)offset >= len) {
+            return 0; // Fin de archivo
+        }
+        
+        // Ajustar el tamaño de lectura si es necesario
+        if ((size_t)offset + size > len) {
+            size = len - (size_t)offset;
+        }
+        
+        // Copiar los datos al buffer
+        memcpy(buf, contenido + offset, size);
+        return size;
+    } else if (strcmp(path, "/") == 0) {
+        // Es un directorio, no se puede leer
+        return -EISDIR;
+    } else {
+        // Archivo no encontrado
+        return -ENOENT;
+    }
+}
+
+// Operaciones de FUSE
 static struct fuse_operations bwfs_oper = {
     .getattr    = bwfs_getattr,
     .readdir    = bwfs_readdir,
     .create     = bwfs_create,
-    .open       = bwfs_open,
-    .read       = bwfs_read,
     .write      = bwfs_write,
-    .unlink     = bwfs_unlink,
-    .mkdir      = bwfs_mkdir,
-    .rmdir      = bwfs_rmdir,
-    .statfs     = bwfs_statfs,
-    .rename     = bwfs_rename,
-    .access     = bwfs_access,
-    .flush      = bwfs_flush,
-    .fsync      = bwfs_fsync,
-    .lseek      = bwfs_lseek,
+    .read       = bwfs_read,
+    .open       = bwfs_open,
+    // Otras operaciones se pueden añadir aquí
 };
 
-// Función para cargar el sistema de archivos
-int load_bwfs(const char *folder);
+int main(int argc, char *argv[]) {
+    // Verificar argumentos
+    if (argc < 3) {
+        fprintf(stderr, "Uso: %s <directorio> <punto_montaje> [opciones]\n", argv[0]);
+        fprintf(stderr, "Opciones comunes:\n");
+        fprintf(stderr, "   -d   Habilita mensajes de depuración\n");
+        fprintf(stderr, "   -f   Ejecuta en primer plano\n");
+        return 1;
+    }
 
-// Función principal para mount.bwfs
-int main(int argc, char *argv[]);
+    // Inicializar la estructura de datos
+    bwfs_data.root_dir = strdup(argv[1]);
+    if (!bwfs_data.root_dir) {
+        perror("Error al asignar memoria para el directorio raíz");
+        return 1;
+    }
+
+    // Crear una copia de los argumentos para FUSE
+    // El primer argumento debe ser el nombre del programa
+    // El resto de argumentos se pasan directamente a FUSE
+    char **fuse_argv = (char **)malloc((argc + 1) * sizeof(char *));
+    if (!fuse_argv) {
+        perror("Error al asignar memoria para los argumentos");
+        free((void*)bwfs_data.root_dir);
+        return 1;
+    }
+
+    // El primer argumento es el nombre del programa
+    fuse_argv[0] = argv[0];
+    
+    // El resto de argumentos se copian tal cual
+    for (int i = 1; i < argc; i++) {
+        fuse_argv[i] = argv[i];
+    }
+    fuse_argv[argc] = NULL;
+
+    // Mostrar información de depuración
+    printf("Montando BWFS:\n");
+    printf("  Directorio raíz: %s\n", bwfs_data.root_dir);
+    printf("  Punto de montaje: %s\n", argv[2]);
+
+    // Iniciar FUSE
+    // Usamos argc-1 y fuse_argv+1 para omitir el nombre del programa
+    int res = fuse_main(argc-1, fuse_argv+1, &bwfs_oper, NULL);
+
+    // Liberar memoria
+    free((void*)bwfs_data.root_dir);
+    free(fuse_argv);
+
+    return res;
+}
