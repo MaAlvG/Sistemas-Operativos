@@ -1,43 +1,90 @@
-# BWFS - Black and White File System
+# Compilar mkfs.bwfs
+gcc -Wall -Iinclude -o bin/mkfs.bwfs src/mkfs.bwfs.c src/bwfs_image.c $(pkg-config --cflags --libs fuse3) -lpng
 
-BWFS es un sistema de archivos en espacio de usuario (FUSE) que utiliza imágenes en blanco y negro como medio de almacenamiento.
+# Compilar mount.bwfs
+gcc -Wall -Iinclude -o bin/mount.bwfs src/mount.bwfs.c src/bwfs_image.c $(pkg-config --cflags --libs fuse3) -lpng
 
-## Componentes
+# Crear directorio para el sistema de archivos
+mkdir -p bwfs
 
-- `mkfs.bwfs`: Formatea un directorio para ser utilizado por BWFS, creando las estructuras iniciales del sistema de archivos en imágenes PNG.
-- `mount.bwfs`: Monta el sistema de archivos BWFS en un punto de montaje del sistema operativo.
-- `fsck.bwfs`: Realiza una comprobación de consistencia en un sistema de archivos BWFS.
+# Crear punto de montaje
+mkdir -p bwfsmnt
 
-## Compilación
+# Crear el sistema de archivos
+./bin/mkfs.bwfs bwfs
 
-Para compilar el proyecto, ejecuta el siguiente comando:
+# Montar el sistema de archivos
+./bin/mount.bwfs bwfs bwfsmnt
 
-```bash
-sh build.sh
-```
 
-## Uso
+# Crear un archivo de prueba
+echo "Contenido de prueba" > bwfsmnt/testfile.txt
 
-1.  **Crear el sistema de archivos:**
+# Leer el archivo
+cat bwfsmnt/testfile.txt
 
-    ```bash
-    ./build/mkfs.bwfs ./data
-    ```
+# Listar directorio
+ls -la bwfsmnt/
 
-2.  **Montar el sistema de archivos:**
+# Desmontar
+fusermount -u bwfsmnt
 
-    ```bash
-    ./build/mount.bwfs ./data ./mount
-    ```
+# Montar el sistema de archivos
+./bin/mount.bwfs bwfs bwfsmnt
 
-3.  **Verificar el punto de montaje:**
+# Listar directorio
+ls -la bwfsmnt/
 
-    ```bash
-    ls -la ./mount
-    ```
+# Añadir contenido al archivo existente
+echo "Segunda línea" >> bwfsmnt/testfile.txt
 
-4.  **Desmontar:**
+# Crear un directorio
+mkdir bwfsmnt/testdir
 
-    ```bash
-    fusermount -u ./mount
-    ```
+# Crear un archivo en el directorio nuevo
+echo "Archivo en directorio" > bwfsmnt/testdir/file_in_dir.txt
+
+# Leer el archivo
+cat bwfsmnt/testfile.txt
+
+# Eliminar el archivo
+rm bwfsmnt/testfile.txt
+
+# Listar directorio
+ls -la bwfsmnt/
+
+# Intentar leer el archivo
+cat bwfsmnt/testfile.txt
+
+# ========== PRUEBAS DE TAMAÑO DE ARCHIVO ==========
+
+# 50 KB
+dd if=/dev/urandom of="bwfsmnt/small.bin" bs=50K count=1 status=none
+
+# Probar con 100 KB (dentro del límite)
+dd if=/dev/urandom of="bwfsmnt/small.bin" bs=100K count=1 status=none
+
+# 122,070 bytes (máximo teórico)
+dd if=/dev/urandom of="bwfsmnt/max_block.bin" bs=122070 count=1 status=none
+
+# 1 MB
+dd if=/dev/urandom of="bwfsmnt/medium.bin" bs=1M count=1 status=none
+
+# ========== PRUEBAS DE TAMAÑO DE ARCHIVO ==========
+
+# 50 KB
+dd if=/dev/urandom of="bwfsmnt/small.bin" bs=50K count=1 status=none
+
+# Probar con 100 KB (dentro del límite)
+dd if=/dev/urandom of="bwfsmnt/small.bin" bs=100K count=1 status=none
+
+# 122,070 bytes (máximo teórico)
+dd if=/dev/urandom of="bwfsmnt/max_block.bin" bs=122070 count=1 status=none
+
+# 1 MB
+dd if=/dev/urandom of="bwfsmnt/medium.bin" bs=1M count=1 status=none
+
+# ========== PRUEBAS DE TAMAÑO DE ARCHIVO ==========
+
+# Desmontar
+fusermount -u bwfsmnt
